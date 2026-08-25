@@ -4,7 +4,7 @@ Paste `RESUME_PROMPT` (bottom of this file) into a fresh session to continue.
 `AGENTS.md` carries the standing engineering rules and is auto-loaded by agent
 sessions; this file carries the *current position*.
 
-Last updated: 2026-08-25, after Phase 4.
+Last updated: 2026-08-25, after Phase 5.
 
 ---
 
@@ -82,16 +82,31 @@ cd C:\Users\Pc\Desktop\Razorpay_Hackathon
 Some slow tests shell out to `belay-conformance`, so put
 `.\.venv\Scripts` on PATH before running the slow suite.
 
-## Verified state at last commit (6241b45)
+## Verified state at last commit (db5b58b)
 
 | | |
 | --- | --- |
-| Tests | **513 pass / 0 fail**, + 22 slow |
-| Branch coverage | 85.54% (CI floor 83%, upward-only) |
+| Tests | **576 pass / 0 fail**, + 22 slow |
+| Branch coverage | 84.13% (CI floor 83%, upward-only) — measures `belay/` AND `recovery/` |
 | L3 conformance | PASSED |
 | Spec MUSTs | 31, all covered, CI-enforced |
 | ruff / mypy | clean |
-| Python LOC | 17,484 (was 31,896 pre-strip; 15,551 immediately after the Phase 1 strip, then Phases 2-4 added the financial domain, limits, tests and demos) |
+| Python LOC | ~21,000 (31,896 pre-strip; 15,551 immediately after the Phase 1 strip) |
+
+Two end-to-end runs, both offline with no credentials:
+
+```
+belay recover
+  revenue at risk   : INR 655,134.00  (200 failed payments)
+  diagnosed         : 200 in 8 model calls  [diagnose_v1@780066f4]
+  selected          : 14   not worth chasing: 41   declined (budget): 145
+  executed          : 2  (INR 3,029.00)     <- under the Rs 2,500 threshold
+  awaiting approval : 12 (INR 46,907.00)    <- above it
+  chain: OK  coherence: OK
+
+python examples/demo_fanout.py
+  25 links at exactly INR 50,000, 26th refused, INR 30,000 prevented
+```
 
 ## Architecture
 
@@ -102,15 +117,19 @@ Some slow tests shell out to `belay-conformance`, so put
 | `belay/policy/cumulative.py` | cumulative spend + velocity fold | deterministic, pure |
 | `belay/razorpay/` | webhook ingestion, preflight (EMPTY — Phase 7) | deterministic |
 | `belay/settlement/` | three-way verification (EMPTY — Phase 8) | deterministic, pure |
-| `recovery/` | AI diagnosis, strategy, prioritization (EMPTY — Phase 5) | **non-deterministic** |
+| `recovery/` | AI diagnosis, strategy, prioritization | **non-deterministic** |
 | `bench/` | adversarial scenarios + metrics (EMPTY — Phase 10) | deterministic |
 | `conformance/` | L1/L2/L3 target-agnostic suite | deterministic |
 
 **The load-bearing invariant.** `recovery/` is the only package allowed to call
 an LLM, and may not import `belay.ledger`, `belay.approvals`, `belay.policy`,
-`belay.executor`, `belay.settlement`, or `belay.finance`. Enforced by AST in
-`tests/test_layer_boundaries.py`, which includes a negative case pinning the
+`belay.executor`, `belay.settlement`, or `belay.finance.mandate`. Enforced by AST
+in `tests/test_layer_boundaries.py`, which includes a negative case pinning the
 detector. The AI proposes; the control plane authorizes.
+
+`belay.finance.money` is deliberately allowed: the line is capability vs value
+type. A mandate is authority; `Money` is arithmetic. Forbidding it would push raw
+ints across the boundary and have the control plane infer their units.
 
 ## Phases done
 
@@ -154,6 +173,26 @@ meaning). Mandate `max_cumulative` + `max_actions_per_window` enforced in the
 lifecycle, scoped per merchant across sessions. Indexed `EventRow.type` +
 `LedgerStore.read_by_types`. `examples/demo_fanout.py` proves it.
 
+**Phase 5 (db5b58b) — AI recovery layer.** `recovery/proposal.py` (RecoveryProposal,
+strict, `clamped()` bounds expected recovery at the original amount),
+`recovery/diagnose.py` (batched 25/call: 200 payments in 8 requests, so a free tier
+suffices; every input payment gets exactly one proposal; malformed output rejected
+wholesale, never patched), `recovery/prioritize.py` (deterministic ranking and
+budget packing — the model scores, code decides), `recovery/agent.py` (the loop;
+distinguishes executed / pending_approval / refused; `refusals_by_layer()` names
+which control fired), `recovery/providers/` (Gemini free / Groq free / Anthropic
+paid / Replay fixtures, raw HTTP via already-present httpx, no vendor SDKs),
+`belay/cli/recover.py` (`belay recover`, computes the budget the agent may not
+read), `scripts/record_fixtures.py`.
+
+**NO PAID API KEY IS REQUIRED.** Provider selection prefers free tiers and falls
+back to recorded fixtures. `recovery/fixtures/` is currently SYNTHETIC
+(rule-derived, stamped `"provider": "synthetic"` in each file so it cannot be
+mistaken for model output). Re-record real reasoning with
+`python scripts/record_fixtures.py --from-provider gemini` once a key exists
+(`GEMINI_API_KEY` in `.env`, free at aistudio.google.com, no card). **The README
+must state which fixtures are real.**
+
 ## Real bugs found and fixed — do not reintroduce
 
 1. **`LedgerStore` ignored its clock** — stamped `datetime.now(UTC)` while
@@ -171,6 +210,14 @@ lifecycle, scoped per merchant across sessions. Indexed `EventRow.type` +
    a `pending_approval` dict rather than raising, and the demo treated it as a
    result. Conflating executed / paused / refused is how a caller believes money
    moved when it did not. Both demo and tests now distinguish all three.
+5. **Wall-clock made fixtures stale within the hour** — payment `age_hours` was
+   computed from `time.time()`, so every diagnosis request was unique and no
+   recorded fixture ever matched. `recovery/agent.py::derive_now_epoch` anchors to
+   the newest payment in the batch instead: reproducible, and more defensible
+   since the agent reasons about a snapshot.
+6. **PowerShell backtick escaping corrupted two files** during editing (a lone
+   `\r` into `pyproject.toml`, a literal `` `n `` into a test). Use the file-edit
+   tool for multi-line changes; do not use PowerShell regex with backticks.
 
 ## Environment findings
 
@@ -202,15 +249,9 @@ settlement mismatch (Phase 8).
 
 ## Remaining plan
 
-- **Phase 5 — AI recovery layer** (`recovery/`). `RecoveryProposal` model,
-  diagnosis, strategy selection, prioritization, expected-recovery estimation.
-  Pluggable provider (Anthropic default, Gemini/Groq possible). Versioned prompts
-  hashed into the ledger. Recorded fixtures so CI is offline; `live_llm` marker.
-  Deterministically bound outputs (expected recovery can never exceed the
-  original amount). Import-boundary test must keep passing.
-- **Phase 6 — live Razorpay test mode** via `npx mcp-remote`. One real payment
-  link created under mandate + policy + approval + idempotency, with a signed
-  evidence bundle. Sandbox stays the default; `--live` opts in.
+- **Phase 6 — live Razorpay test mode** via `npx mcp-remote` (already wired as
+  `belay recover --live`; needs one real run to confirm, plus a signed evidence
+  bundle from it).
 - **Phase 7 — webhooks.** HMAC verify (official `razorpay` SDK), dedupe by event
   id, map to ledger events. `belay webhooks replay <file>` — no public endpoint,
   no tunnel. **This is what produces "money recovered", so it is required for the
@@ -254,31 +295,34 @@ matches what HANDOFF.md claims:
   cd C:\Users\Pc\Desktop\Razorpay_Hackathon
   .\.venv\Scripts\python.exe -m pytest -q --no-cov
   .\.venv\Scripts\python.exe examples\demo_fanout.py
+  .\.venv\Scripts\python.exe -m belay.cli.main recover
 
-Expect 513 passed / 0 failed, and the fan-out demo blocking 15 of 40 links with
-INR 30,000 prevented. Use .\.venv\Scripts\python.exe for everything — the
+Expect 576 passed / 0 failed; the fan-out demo blocking 15 of 40 links with INR
+30,000 prevented; and `recover` diagnosing 200 payments in 8 model calls, executing
+2 and parking 12 for approval. Use .\.venv\Scripts\python.exe for everything — the
 project needs Python 3.12 and the system Python is 3.11.
 
 Context in one paragraph: this repo was my own general AI-agent tool-safety MCP
 proxy (belay-mcp, 31,896 LOC, L3 conformant, 28 ADRs). We retargeted it into an
 AI revenue recovery agent for Razorpay with a deterministic financial control
-plane. Phases 1-4 are done and committed: strip to the control plane; Money as
+plane. Phases 1-5 are done and committed: strip to the control plane; Money as
 integer paise + MerchantMandate; a Razorpay sandbox MCP server plus a 13-contract
-pack; and cumulative/velocity limits. The central invariant is that the AI
-proposes and the control plane authorizes — recovery/ is the only package allowed
-to call an LLM and is forbidden by an AST test from importing anything that could
-authorize, execute, or record.
+pack; cumulative/velocity limits; and the AI recovery layer. The central invariant
+is that the AI proposes and the control plane authorizes — recovery/ is the only
+package allowed to call an LLM and is forbidden by an AST test from importing
+anything that could authorize, execute, or record. No paid API key is needed:
+providers are pluggable (Gemini/Groq free tiers) and fall back to recorded
+fixtures.
 
 Deadline is 2026-09-05: a public repo, a 5-minute pitch VIDEO, and an
 architecture walkthrough to a panel. The official Track 03 bar requires measured
 money recovered across a batch, compliant escalation, stopping rules, and an
 audit trail. We have three of those four; "measured money recovered across a
-batch" still needs Phases 5-7 and is a hard requirement.
+batch" needs Phase 7 (webhooks) and is a hard requirement.
 
-Next up is Phase 5: the AI recovery layer in recovery/ — RecoveryProposal model,
-failure diagnosis, strategy selection, prioritization, expected-recovery
-estimation, with the LLM provider behind an interface (Anthropic default) and
-recorded fixtures so CI never calls a paid API.
+Next up is Phase 6 (one real Razorpay test-mode run via `belay recover --live`,
+which uses npx mcp-remote and needs no Docker) then Phase 7 (webhook ingestion,
+which is what turns a created payment link into *recovered money*).
 
 Work one phase at a time. After the phase, run the full gate (fast tests, slow
 tests, both demos, conformance, traceability, ruff, mypy), report the real
