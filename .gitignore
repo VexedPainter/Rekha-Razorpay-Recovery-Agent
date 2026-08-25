@@ -16,3 +16,19 @@ build-pyinstaller/
 venv/
 *.db
 .hypothesis/
+.benchmarks/
+
+# Credentials. Never commit these.
+# `.env.example` IS tracked (it is a template with no real values); every
+# other .env variant is ignored. Razorpay keys, webhook secrets, and LLM API
+# keys live here and nowhere else.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# Local demo/scratch output
+demo-out/
+*.evidence.json
