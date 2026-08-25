@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        `docs/spec.md` (Belay Specification 0.1) is the source of truth for
+        `docs/spec.md` (Rekha Specification 0.1) is the source of truth for
         this repo (see `AGENTS.md` rule 1). If behavior isn't decidable from
         the spec text alone, that's a spec bug, not something to resolve by
         guessing in code.

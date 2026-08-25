@@ -1,11 +1,11 @@
 """No-self-approval (spec Â§12): the agent has no approval-surface at all.
 
-Belay MUST NOT expose any approval-related route to the protected agent.
-This is enforced architecturally, not just by convention: `BelayProxyServer`
+Rekha MUST NOT expose any approval-related route to the protected agent.
+This is enforced architecturally, not just by convention: `RekhaProxyServer`
 only ever registers `list_tools`/`call_tool` handlers that proxy the
-*upstream's* tools (`belay/proxy/server.py`), and `ApprovalStage` (in
-`belay/proxy/lifecycle.py`) has no `approve`/`reject` call sites -- those
-live only in `belay/cli/main.py`'s `approvals` subcommands. So there is
+*upstream's* tools (`rekha/proxy/server.py`), and `ApprovalStage` (in
+`rekha/proxy/lifecycle.py`) has no `approve`/`reject` call sites -- those
+live only in `rekha/cli/main.py`'s `approvals` subcommands. So there is
 no code path from an MCP `call_tool` to `ApprovalQueue.approve`/`.reject`.
 """
 
@@ -15,12 +15,12 @@ import inspect
 from typing import Any
 
 import pytest
-from belay.contracts.model import ContractSet
-from belay.ledger.store import LedgerStore
-from belay.proxy import lifecycle as lifecycle_module
-from belay.proxy.server import BelayProxyServer
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import CallToolResult, Tool, ToolAnnotations
+from rekha.contracts.model import ContractSet
+from rekha.ledger.store import LedgerStore
+from rekha.proxy import lifecycle as lifecycle_module
+from rekha.proxy.server import RekhaProxyServer
 
 pytestmark = pytest.mark.anyio
 
@@ -54,7 +54,7 @@ class FakeUpstream:
 async def test_agent_facing_tool_list_never_advertises_an_approval_tool() -> None:
     """@spec("12.1") — approval surfaces MUST NOT be exposed as tools to the protected agent."""
     upstream = FakeUpstream()
-    proxy = BelayProxyServer(
+    proxy = RekhaProxyServer(
         upstream,  # type: ignore[arg-type]
         ContractSet(contracts={}, set_hash="sha256:empty"),
         LedgerStore(),
@@ -70,14 +70,14 @@ async def test_agent_facing_tool_list_never_advertises_an_approval_tool() -> Non
 
 @pytest.mark.parametrize(
     "fake_tool_name",
-    ["approvals.approve", "belay.approve", "approve", "approvals/approve"],
+    ["approvals.approve", "rekha.approve", "approve", "approvals/approve"],
 )
 async def test_calling_any_approval_shaped_tool_name_is_refused_not_approved(
     fake_tool_name: str,
 ) -> None:
     """@spec("7.2.2") — an agent MUST NOT be able to approve its own actions through any tool."""
     upstream = FakeUpstream()
-    proxy = BelayProxyServer(
+    proxy = RekhaProxyServer(
         upstream,  # type: ignore[arg-type]
         ContractSet(contracts={}, set_hash="sha256:empty"),
         LedgerStore(),

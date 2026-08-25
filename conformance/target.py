@@ -1,4 +1,4 @@
-"""`ConformanceTarget`: the thin adapter any Belay implementation implements
+"""`ConformanceTarget`: the thin adapter any Rekha implementation implements
 to be exercised by the public conformance suite (spec §13, plan.md E8).
 
 Six methods, derived directly from what the L1/L2/L3 scenarios need to
@@ -31,7 +31,7 @@ Executor = Callable[[str, dict[str, Any]], Awaitable[Any]]
 
 
 class ConformanceTarget(Protocol):
-    """Adapter a conformance suite drives to exercise one Belay implementation."""
+    """Adapter a conformance suite drives to exercise one Rekha implementation."""
 
     def new_session(
         self,

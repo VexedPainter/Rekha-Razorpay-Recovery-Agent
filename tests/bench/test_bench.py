@@ -11,9 +11,9 @@ Marked `slow`: the suite spawns a real MCP server subprocess.
 from __future__ import annotations
 
 import pytest
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
 from bench.metrics import measure_events, render
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
 
 
 @pytest.mark.slow
@@ -86,7 +86,7 @@ async def test_the_report_distinguishes_adversarial_from_benign() -> None:
 def _session_with_recovery(
     *, authorized: int = 240000, paid: int | None = None
 ) -> LedgerStore:
-    from belay.razorpay.webhooks import ingest, sign_payload
+    from rekha.razorpay.webhooks import ingest, sign_payload
 
     ledger = LedgerStore()
     ledger.append("s", "session_started", {"merchant_id": "acme"}, initiated_by="agent")

@@ -1,6 +1,6 @@
-# Belay — Plan maestro de implementación (SDD + TDD)
+# Rekha — Plan maestro de implementación (SDD + TDD)
 
-**Objetivo:** que un agente de desarrollo (Codex u otro) pueda construir el producto completo **solo con este documento + `docs/spec.md` (Belay Specification 0.1)**, hasta publicar la release `v0.1.0` en GitHub lista para portfolio.
+**Objetivo:** que un agente de desarrollo (Codex u otro) pueda construir el producto completo **solo con este documento + `docs/spec.md` (Rekha Specification 0.1)**, hasta publicar la release `v0.1.0` en GitHub lista para portfolio.
 
 **Idioma:** este plan y los mensajes de trabajo, en español. Todo artefacto del repo visible al público (README, docs, código, mensajes de commit, CHANGELOG) **en inglés** — el público de un estándar open source es global.
 
@@ -8,12 +8,12 @@
 
 ## 0. Producto final y definición de terminado global
 
-La release `v0.1.0` de `belay` está terminada cuando, partiendo de un clon limpio:
+La release `v0.1.0` de `rekha` está terminada cuando, partiendo de un clon limpio:
 
-1. `pip install -e ".[dev]" && pytest` pasa en < 60 s con cobertura ≥ 90 % en `belay/` (ramas incluidas).
-2. `belay wrap examples/fs-server --contracts examples/contracts/fs.yaml && belay run` levanta un proxy MCP funcional al que se conecta cualquier cliente MCP estándar.
-3. La **demo de 3 minutos** (§10) funciona de principio a fin: un agente intenta borrar en masa → Belay pausa → aprobación humana → ejecución → `belay rewind` restaura, con informe honesto.
-4. La suite de conformidad (`belay-conformance`) declara la implementación **L3** según §13 de la spec.
+1. `pip install -e ".[dev]" && pytest` pasa en < 60 s con cobertura ≥ 90 % en `rekha/` (ramas incluidas).
+2. `rekha wrap examples/fs-server --contracts examples/contracts/fs.yaml && rekha run` levanta un proxy MCP funcional al que se conecta cualquier cliente MCP estándar.
+3. La **demo de 3 minutos** (§10) funciona de principio a fin: un agente intenta borrar en masa → Rekha pausa → aprobación humana → ejecución → `rekha rewind` restaura, con informe honesto.
+4. La suite de conformidad (`rekha-conformance`) declara la implementación **L3** según §13 de la spec.
 5. CI verde en GitHub Actions (lint + types + tests + build), release etiquetada con changelog, README con badges reales.
 
 Regla suprema, heredada de la spec: **ningún MUST de `docs/spec.md` sin su test**. Si durante la implementación un MUST resulta ambiguo o inviable, se cambia primero la spec en un commit separado con nota de decisión, nunca se divierge en silencio.
@@ -34,21 +34,21 @@ los criterios históricos de `v0.1.0`.
 
 ## 1. Stack y decisiones técnicas fijadas
 
-- **Python 3.12+**. Paquete `belay-mcp` en PyPI, módulo `belay`.
-- **MCP:** SDK oficial de Python (`mcp`). Belay es servidor MCP hacia el agente y cliente MCP hacia los tools (spec, Apéndice C). Transportes: stdio y HTTP streamable.
-- **Persistencia:** SQLite vía SQLAlchemy 2 + Alembic. Un fichero por despliegue (`belay.db`), tablas: `sessions`, `events`, `approvals`, `contract_sets`.
-- **Modelos:** Pydantic v2 para todo objeto de la spec (contratos, planes, políticas, eventos, errores). Serialización canónica: JSON con claves ordenadas, sin espacios, UTF-8 — es la base del hash de evidencia, congélala en `belay/canonical.py` con tests propios.
-- **CLI:** Typer. **Consola de aprobaciones v0.1:** solo CLI (`belay approvals list/approve/reject`); la web queda fuera de alcance.
+- **Python 3.12+**. Paquete `rekha` en PyPI, módulo `rekha`.
+- **MCP:** SDK oficial de Python (`mcp`). Rekha es servidor MCP hacia el agente y cliente MCP hacia los tools (spec, Apéndice C). Transportes: stdio y HTTP streamable.
+- **Persistencia:** SQLite vía SQLAlchemy 2 + Alembic. Un fichero por despliegue (`rekha.db`), tablas: `sessions`, `events`, `approvals`, `contract_sets`.
+- **Modelos:** Pydantic v2 para todo objeto de la spec (contratos, planes, políticas, eventos, errores). Serialización canónica: JSON con claves ordenadas, sin espacios, UTF-8 — es la base del hash de evidencia, congélala en `rekha/canonical.py` con tests propios.
+- **CLI:** Typer. **Consola de aprobaciones v0.1:** solo CLI (`rekha approvals list/approve/reject`); la web queda fuera de alcance.
 - **Lenguaje de expresiones (§4.3):** implementación propia con `ast` de gramática cerrada — PROHIBIDO `eval`/`exec`. Alternativa aceptada: parser recursivo manual. Nada de dependencias de plantillas.
-- **Sin LLM en el camino de seguridad.** Belay no llama a ningún modelo. Determinista de punta a punta.
-- **Lint/format/types:** ruff + mypy estricto en `belay/` (los tests pueden relajar mypy).
+- **Sin LLM en el camino de seguridad.** Rekha no llama a ningún modelo. Determinista de punta a punta.
+- **Lint/format/types:** ruff + mypy estricto en `rekha/` (los tests pueden relajar mypy).
 - **Licencia:** MIT. `docs/spec.md` con nota CC-BY-4.0.
 
 ## 2. Estructura del repositorio (crear en E0 y no renombrar después)
 
 ```
-belay/
-├── belay/
+rekha/
+├── rekha/
 │   ├── __init__.py
 │   ├── canonical.py          # JSON canónico + SHA-256
 │   ├── errors.py             # error model §11 completo
@@ -81,17 +81,17 @@ belay/
 │   │   └── lifecycle.py      # §3: resolve→plan→policy→(approval)→execute
 │   └── cli/
 │       └── main.py           # wrap, run, plan, approvals, rewind, verify
-├── conformance/              # paquete belay-conformance (E8)
+├── conformance/              # paquete rekha-conformance (E8)
 ├── examples/
 │   ├── fs-server/            # servidor MCP de ficheros de juguete
 │   ├── crm-mock/             # CRM en memoria con get/create/update/delete/import/export
 │   ├── contracts/            # fs.yaml, crm.yaml, email.yaml
 │   └── demo.py               # guion de la demo §10
 ├── docs/
-│   ├── spec.md               # Belay Specification 0.1 (el documento ya redactado)
+│   ├── spec.md               # Rekha Specification 0.1 (el documento ya redactado)
 │   ├── architecture.md
 │   └── adr/
-├── tests/                    # espejo de belay/: tests/contracts/, tests/ledger/…
+├── tests/                    # espejo de rekha/: tests/contracts/, tests/ledger/…
 ├── .github/workflows/ci.yaml + release.yaml
 ├── AGENTS.md                 # §11 de este plan
 ├── README.md                 # el README de marketing ya redactado, con quickstart real
@@ -116,7 +116,7 @@ Orden estricto; cada una lista **(a)** alcance, **(b)** contratos/firmas clave, 
 ### E0 — Andamiaje
 
 **(a)** Estructura §2, pyproject con extras `[dev]`, ruff+mypy+pytest+coverage configurados, CI en GitHub Actions (matriz 3.12/3.13), pre-commit, README y spec copiados a su sitio, Alembic inicializado con tablas vacías versionadas.
-**(c)** un test trivial de importación por paquete; test de que `belay --help` ejecuta.
+**(c)** un test trivial de importación por paquete; test de que `rekha --help` ejecuta.
 **(d)** CI verde en repo público desde el primer push. El repo ya es presentable aunque no haga nada.
 
 ### E1 — Contratos y lenguaje de expresiones (spec §4)
@@ -152,17 +152,17 @@ redact(payload, contract) -> payload          # hashes con sal, §9.3
 - Property: para cualquier secuencia válida generada, `replay` es determinista y puro (dos ejecuciones → estados idénticos).
 - Redacción: campo redactado no aparece en claro; igualdad comprobable entre dos eventos con el mismo secreto; evento ya escrito es inmutable (no existe API de update — verificar que el store no la expone).
 - Apéndice: eventos con campos desconocidos se conservan al releer (§14: la evidencia es tolerante).
-**(d)** `belay verify <db>` funciona por CLI contra una base real.
+**(d)** `rekha verify <db>` funciona por CLI contra una base real.
 
 ### E3 — Proxy L1 + CLI (spec §3, §4.6, Apéndice C) — **primer hito publicable**
 
-**(a)** Proxy MCP completo en modo L1: lista tools del upstream, resuelve contrato por llamada, aplica la **regla por defecto** (§4.6), ejecuta passthrough con eventos de ledger, expone `belay wrap` / `belay run` / `belay verify`. `unsafe_passthrough` por tool en config, registrado como `config_override`.
+**(a)** Proxy MCP completo en modo L1: lista tools del upstream, resuelve contrato por llamada, aplica la **regla por defecto** (§4.6), ejecuta passthrough con eventos de ledger, expone `rekha wrap` / `rekha run` / `rekha verify`. `unsafe_passthrough` por tool en config, registrado como `config_override`.
 **(c)**
 - `readOnlyHint:true` sin contrato → permitido, `effects:[read]` implícito.
 - Tool sin contrato ni hint → `contract_missing`; con `destructiveHint` → ídem (hints nunca autorizan).
 - `unsafe_passthrough` → pasa y TODOS sus eventos llevan el override.
 - Sesión fija `set_hash` en `session_started`; cambiar contratos a mitad → las llamadas siguen gobernadas por el set fijado.
-- Integración: cliente MCP real (SDK) contra Belay contra `examples/fs-server`, extremo a extremo por stdio.
+- Integración: cliente MCP real (SDK) contra Rekha contra `examples/fs-server`, extremo a extremo por stdio.
 **(d)** conformidad **L1** pasando; tag `v0.0.1-alpha` y nota "L1 preview" en README. *A partir de aquí el repo ya vale para el portfolio y cada entrega lo mejora.*
 
 ### E4 — Planner y motor de políticas (spec §5, §6)
@@ -179,7 +179,7 @@ Adaptadores de dry-run v0.1: `contract` (siempre) y `native_dry_run` si el tool 
 - Irreversible → default `pause` (§6.4); relajación por tool queda en config y en ledger.
 - Expiración de plan (§5.4): plan caducado al ejecutar → `plan_expired`; args no idénticos byte a byte → `plan_mismatch`.
 - Quiet hours con reloj inyectable.
-**(d)** `belay plan <tool> --args '<json>'` por CLI devuelve el objeto Plan completo de §5.1.
+**(d)** `rekha plan <tool> --args '<json>'` por CLI devuelve el objeto Plan completo de §5.1.
 
 ### E5 — Aprobaciones (spec §7)
 
@@ -188,7 +188,7 @@ Adaptadores de dry-run v0.1: `contract` (siempre) y `native_dry_run` si el tool 
 - El agente recibe `pending_approval` estructurado, no error; tras rechazo → `approval_rejected` con razón.
 - **No-self-approval:** el proxy no expone superficie de aprobación al agente; test: un tool call del agente a cualquier ruta de aprobación no existe/falla.
 - La aprobación queda ligada a `plan_id`; re-planificar invalida el item (§12 approver binding).
-**(d)** flujo completo por CLI: acción pausada → `belay approvals list` → `approve` → la ejecución continúa y el ledger enlaza todo.
+**(d)** flujo completo por CLI: acción pausada → `rekha approvals list` → `approve` → la ejecución continúa y el ledger enlaza todo.
 
 ### E6 — Ejecutor de sagas (spec §8) — **la entrega más delicada**
 
@@ -216,14 +216,14 @@ Adaptadores de dry-run v0.1: `contract` (siempre) y `native_dry_run` si el tool 
 
 ### E8 — Suite de conformidad pública + packs de ejemplo
 
-**(a)** extraer los tests marcados `@conformance(level=…)` al paquete `belay-conformance`, ejecutable contra CUALQUIER implementación vía un adaptador fino (`ConformanceTarget` con ~6 métodos). Es lo que convierte a Belay de producto en estándar. Packs de contratos de ejemplo: filesystem, crm-mock, email (irreversible), cada uno con su test de carga.
-**(d)** `pip install belay-conformance && belay-conformance run --target belay --level 3` → informe L3.
+**(a)** extraer los tests marcados `@conformance(level=…)` al paquete `rekha-conformance`, ejecutable contra CUALQUIER implementación vía un adaptador fino (`ConformanceTarget` con ~6 métodos). Es lo que convierte a Rekha de producto en estándar. Packs de contratos de ejemplo: filesystem, crm-mock, email (irreversible), cada uno con su test de carga.
+**(d)** `pip install rekha-conformance && rekha-conformance run --target rekha --level 3` → informe L3.
 
 ### E9 — Demo, docs y pulido de portfolio
 
 **(a)**
-1. `examples/demo.py`: guion reproducible — agente simulado pide `crm.bulk_delete` de ~500 filas → pausa → consola muestra el plan → humano aprueba versión acotada → ejecuta → "ups" → `belay rewind` → informe honesto. Grabar con `asciinema` o VHS (tape incluido en el repo) y enlazar el GIF en el README.
-2. `docs/architecture.md` con el diagrama (agente → belay [contratos|políticas|dry-run|aprobaciones|ejecutor|rewind|ledger] → tools) en Mermaid.
+1. `examples/demo.py`: guion reproducible — agente simulado pide `crm.bulk_delete` de ~500 filas → pausa → consola muestra el plan → humano aprueba versión acotada → ejecuta → "ups" → `rekha rewind` → informe honesto. Grabar con `asciinema` o VHS (tape incluido en el repo) y enlazar el GIF en el README.
+2. `docs/architecture.md` con el diagrama (agente → rekha [contratos|políticas|dry-run|aprobaciones|ejecutor|rewind|ledger] → tools) en Mermaid.
 3. README final: badges reales (CI, PyPI, licencia, conformance L3), quickstart verificado copiando-pegando en un contenedor limpio, sección comparativa (gateways / observabilidad / rewind enterprise) con enlaces.
 4. `CONTRIBUTING.md` + plantillas de issue ("Propose a contract pack", "Spec ambiguity").
 5. Release: `release.yaml` publica en PyPI con trusted publishing al etiquetar; tag `v0.1.0` con changelog.
@@ -233,7 +233,7 @@ Adaptadores de dry-run v0.1: `contract` (siempre) y `native_dry_run` si el tool 
 
 **(a)** Corregir el test de sintaxis de `install.sh` para Git Bash y WSL;
 cerrar o liberar explícitamente los engines/conexiones SQLite que pertenecen a
-Belay; medir ramas en CI; y reconciliar README, CHANGELOG, CONTRIBUTING,
+Rekha; medir ramas en CI; y reconciliar README, CHANGELOG, CONTRIBUTING,
 SECURITY y la plantilla de PR con el estado real. Un ADR registra por qué el
 tag `v0.1.0` y la definición global no coincidieron, sin modificar el tag ni
 rebajar el objetivo histórico.
@@ -262,20 +262,20 @@ declara cumplido el objetivo de < 60 s mientras no lo esté.
 
 ### E22 — Conexión Codex/Claude sin configuración
 
-**(a)** Añadir `belay connect` y `belay disconnect`. Sin argumentos, `connect`
+**(a)** Añadir `rekha connect` y `rekha disconnect`. Sin argumentos, `connect`
 detecta Codex y Claude ya instalados, genera un proxy para el Filesystem MCP
 oficial fijado a `@modelcontextprotocol/server-filesystem@2026.7.10` y limitado
-al directorio actual, completa un handshake MCP real, registra Belay mediante
+al directorio actual, completa un handshake MCP real, registra Rekha mediante
 las CLI oficiales y, para Claude, instala hooks compatibles de proyecto. No
 instala ni autentica Codex, Claude, Node o `npx`.
 
 **(b)** El nombre por defecto es
-`belay-<slug-del-directorio>-<sha256-ruta-canónica[:8]>`. Instalaciones Python
-arrancan `<python> -m belay.cli.main run`; binarios congelados arrancan su
-propio ejecutable. `.belay/connection.json` conserva ownership, targets,
+`rekha-<slug-del-directorio>-<sha256-ruta-canónica[:8]>`. Instalaciones Python
+arrancan `<python> -m rekha.cli.main run`; binarios congelados arrancan su
+propio ejecutable. `.rekha/connection.json` conserva ownership, targets,
 snapshots y estado. Las escrituras y el rollback usan comparación de hashes;
 una edición concurrente nunca se sobrescribe. `disconnect` elimina solo
-registros/hooks gestionados y conserva `.belay/belay.db`; `--purge-runtime`
+registros/hooks gestionados y conserva `.rekha/rekha.db`; `--purge-runtime`
 tampoco borra evidencia.
 
 **(c)**
@@ -287,14 +287,14 @@ tampoco borra evidencia.
   byte cuando no existe conflicto y el conflicto concurrente se informa sin
   sobrescribirlo.
 - Handshake real con el Filesystem MCP fijado; la lista de tools atraviesa el
-  proxy Belay y el upstream no puede salir del directorio actual.
+  proxy Rekha y el upstream no puede salir del directorio actual.
 - Repetir `connect` es no-op o reparación segura; `disconnect` conserva entradas
   ajenas. El wheel aislado contiene el pack y supera el mismo preflight.
 
 **(d)** Desde un directorio temporal y con al menos uno de Codex o Claude ya
-instalado, un único `belay connect` deja cada cliente detectado apuntando al
+instalado, un único `rekha connect` deja cada cliente detectado apuntando al
 proxy operativo y protegido; una segunda ejecución es idempotente; y
-`belay disconnect` revierte únicamente lo gestionado por Belay. Los smokes
+`rekha disconnect` revierte únicamente lo gestionado por Rekha. Los smokes
 aislados de las sintaxis oficiales de Codex y Claude, el handshake MCP real y
 el wheel instalado pasan en CI sin tocar el home personal.
 
@@ -337,7 +337,7 @@ está configurado, su job queda omitido en verde y no se afirma publicación.
 
 ## 5. Modelo de errores — tabla de verdad transversal
 
-Implementar `belay/errors.py` en E0 con los 17 códigos de spec §11, cada uno con `retryable` correcto (`approval_required`, `plan_expired`: retryable; `policy_denied`, `contract_missing`: no). Test transversal: toda excepción que cruza el borde del proxy es uno de los 17 códigos — cualquier traceback crudo hacia el agente es un bug (test con fuzzing ligero de inputs).
+Implementar `rekha/errors.py` en E0 con los 17 códigos de spec §11, cada uno con `retryable` correcto (`approval_required`, `plan_expired`: retryable; `policy_denied`, `contract_missing`: no). Test transversal: toda excepción que cruza el borde del proxy es uno de los 17 códigos — cualquier traceback crudo hacia el agente es un bug (test con fuzzing ligero de inputs).
 
 ## 6. Seguridad — tests obligatorios (spec §12)
 
@@ -361,7 +361,7 @@ Reglas para el agente de desarrollo:
 
 1. La fuente de verdad es `docs/spec.md` + este plan. Prohibido inventar semántica; ante ambigüedad, proponer cambio de spec en commit separado y esperar aprobación humana.
 2. TDD estricto: test rojo antes de código. Prohibido debilitar o borrar tests para poner el CI en verde.
-3. Prohibido `eval`/`exec`/plantillas en expresiones; prohibido llamar a un LLM desde `belay/`.
+3. Prohibido `eval`/`exec`/plantillas en expresiones; prohibido llamar a un LLM desde `rekha/`.
 4. Todo artefacto público en inglés; ADRs y notas de trabajo pueden ir en español.
 5. No renombrar la estructura de §2 sin ADR.
 6. Cada entrega = un PR con: enlace a secciones de spec, lista de tests añadidos, salida de `pytest` y de la suite de conformidad al nivel correspondiente.
@@ -370,16 +370,16 @@ Reglas para el agente de desarrollo:
 ## 10. Guion exacto de la demo (portfolio)
 
 ```text
-$ belay wrap examples/crm-mock --contracts examples/contracts/crm.yaml
-$ belay run &
+$ rekha wrap examples/crm-mock --contracts examples/contracts/crm.yaml
+$ rekha run &
 $ python examples/demo.py            # agente: "clean stale records"
   → plan: delete crm.record ~512 (estimate)  → verdict: pause (cap 100)
-$ belay approvals list               # humano ve el plan REAL, no una paráfrasis
-$ belay approvals approve ap_19 --narrow "last_seen < 2023"   # ~80 filas
+$ rekha approvals list               # humano ve el plan REAL, no una paráfrasis
+$ rekha approvals approve ap_19 --narrow "last_seen < 2023"   # ~80 filas
   → step 17 committed (capture: 80 records snapshotted)
 $ python examples/demo.py --oops     # filtro estaba mal
-$ belay rewind s_7f3a --dry-run      # 1 compensación, 0 irreversibles
-$ belay rewind s_7f3a --by jairo
+$ rekha rewind s_7f3a --dry-run      # 1 compensación, 0 irreversibles
+$ rekha rewind s_7f3a --by jairo
   → compensation executed · verification passed · chain verified ✓
   → session fully compensated
 ```

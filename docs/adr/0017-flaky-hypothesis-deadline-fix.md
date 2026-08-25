@@ -8,7 +8,7 @@ Accepted.
 
 A manual, from-scratch verification of the Definition of Done (`docs/plan.md`
 §0) — fresh clone, `pip install -e ".[dev]" && pytest`, the `demo.py`/`--oops`
-scenario, `belay-conformance --level 3` — found that
+scenario, `rekha-conformance --level 3` — found that
 `tests/ledger/test_counterfactual.py::test_property_any_noop_override_is_always_unchanged_and_matches_replay`
 failed intermittently: roughly 1 in 15-20 runs when the test is run in
 isolation and repeated, and once in 8 full-suite runs.
@@ -51,8 +51,8 @@ Set `deadline=None` on Hypothesis property tests that perform real I/O
 property under test; correctness is. Do **not** globally disable
 deadlines repo-wide via `hypothesis.settings.register_profile`, since a
 deadline is still a useful trip-wire for pure-computation property tests
-(e.g. `belay/contracts/expressions.py`'s parser/evaluator property tests,
-`belay/policy/baseline.py`'s Welford property test) where a sudden latency
+(e.g. `rekha/contracts/expressions.py`'s parser/evaluator property tests,
+`rekha/policy/baseline.py`'s Welford property test) where a sudden latency
 regression *would* be a meaningful signal. The fix is scoped to the
 specific tests doing real I/O, not a blanket opt-out.
 

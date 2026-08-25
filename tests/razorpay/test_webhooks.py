@@ -17,11 +17,11 @@ import json
 from typing import Any
 
 import pytest
-from belay.errors import BelayError
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.ledger.verify import verify_chain, verify_coherence
-from belay.razorpay.webhooks import (
+from rekha.errors import RekhaError
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.ledger.verify import verify_chain, verify_coherence
+from rekha.razorpay.webhooks import (
     WEBHOOK_RECEIVED,
     correlate_recoveries,
     ingest,
@@ -124,7 +124,7 @@ def test_comparison_is_constant_time() -> None:
     guessable one character at a time."""
     import inspect
 
-    from belay.razorpay import webhooks
+    from rekha.razorpay import webhooks
 
     source = inspect.getsource(webhooks.verify_signature)
     assert "compare_digest" in source
@@ -174,7 +174,7 @@ def test_a_missing_event_id_falls_back_to_a_body_digest() -> None:
 
 @pytest.mark.parametrize("bad", ["not json", "[]", '"a string"', "{}", '{"event": ""}'])
 def test_a_body_without_an_event_is_refused(bad: str) -> None:
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         parse_fact(bad)
     assert excinfo.value.code == "webhook_signature_invalid"
 
@@ -186,7 +186,7 @@ def test_an_unverified_webhook_appends_nothing() -> None:
     """Recording an unverified claim would put a fact in the evidence chain that
     nothing vouches for."""
     ledger = LedgerStore()
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         ingest(ledger, "s", _link_paid_body(), "forged", SECRET, event_id="evt_1")
     assert excinfo.value.code == "webhook_signature_invalid"
     assert ledger.read("s") == []

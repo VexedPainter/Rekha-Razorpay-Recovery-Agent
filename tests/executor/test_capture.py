@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from belay.contracts.model import Capture, Contract, ContractSet, Effect, Undo
-from belay.errors import BelayError
-from belay.executor.saga import SagaExecutor
-from belay.ledger.store import LedgerStore
+from rekha.contracts.model import Capture, Contract, ContractSet, Effect, Undo
+from rekha.errors import RekhaError
+from rekha.executor.saga import SagaExecutor
+from rekha.ledger.store import LedgerStore
 
 pytestmark = pytest.mark.anyio
 
@@ -18,7 +18,7 @@ def anyio_backend() -> str:
 
 def _reversible_with_capture() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.update",
         reversibility="reversible",
         capture=Capture(tool="crm.get", args={"id": "$args.id"}, **{"as": "before"}),
@@ -55,7 +55,7 @@ async def test_non_read_only_capture_contract_is_rejected() -> None:
     """@spec("4.4.1") — the capture call MUST be read-only."""
     ledger = LedgerStore()
     write_capture_contract = Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.get",
         reversibility="irreversible",
         effects=[Effect(type="update", resource="crm.record", count="1")],  # not read-only!
@@ -63,7 +63,7 @@ async def test_non_read_only_capture_contract_is_rejected() -> None:
     contract_set = ContractSet(contracts={"crm.get": write_capture_contract}, set_hash="sha256:x")
     saga = SagaExecutor(ledger=ledger, contract_set=contract_set)
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await saga.run_step(
             "s1", 1, "crm.update", {"id": "1"}, _reversible_with_capture(), _executor
         )

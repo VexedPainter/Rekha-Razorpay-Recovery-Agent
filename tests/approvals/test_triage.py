@@ -1,9 +1,9 @@
-"""belay/approvals/triage.py: deterministic risk-sort of the pending queue."""
+"""rekha/approvals/triage.py: deterministic risk-sort of the pending queue."""
 
 from __future__ import annotations
 
-from belay.approvals.queue import ApprovalQueue
-from belay.approvals.triage import triage, triage_queue
+from rekha.approvals.queue import ApprovalQueue
+from rekha.approvals.triage import triage, triage_queue
 
 
 def _item(queue: ApprovalQueue, plan_id: str, plan: dict):

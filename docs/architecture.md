@@ -1,9 +1,9 @@
 # Architecture
 
-Belay sits as an MCP proxy between an agent and its tool servers: it speaks
+Rekha sits as an MCP proxy between an agent and its tool servers: it speaks
 MCP to the agent (server role) and MCP to the wrapped tools (client role,
 spec Appendix C). Every tool call the agent makes is governed by the
-lifecycle in `belay/proxy/lifecycle.py` before (and if necessary instead of)
+lifecycle in `rekha/proxy/lifecycle.py` before (and if necessary instead of)
 reaching the real tool.
 
 ## Component map
@@ -12,7 +12,7 @@ reaching the real tool.
 flowchart LR
     Agent(["Agent\n(MCP client)"]) -- MCP call --> Proxy
 
-    subgraph Proxy["belay (belay/proxy)"]
+    subgraph Proxy["rekha (rekha/proxy)"]
         direction TB
         Resolve["resolve()\ncontracts/model.py, loader.py\n+ default rule (spec §4.6)"]
         Plan["Planner\nplanner/planner.py\ndry-run: contract | native_dry_run"]
@@ -38,13 +38,13 @@ flowchart LR
     Executor -- MCP call --> Tools[["Tool servers\n(proxy/upstream.py)"]]
     Rewind -- MCP call (undo) --> Tools
 
-    Operator(["Human operator\n(belay approvals / belay rewind CLI)"]) -.-> Approvals
+    Operator(["Human operator\n(rekha approvals / rekha rewind CLI)"]) -.-> Approvals
     Operator -.-> Rewind
 ```
 
 ## Request lifecycle (spec §3)
 
-`belay/proxy/lifecycle.py` implements the normative sequence for every
+`rekha/proxy/lifecycle.py` implements the normative sequence for every
 governed call, in order, each stage appending its own ledger event(s)
 (spec §9.1):
 
@@ -64,7 +64,7 @@ governed call, in order, each stage appending its own ledger event(s)
 4. **approval** (conditional) — a `pause` verdict parks the plan in
    `ApprovalQueue` and returns a structured `pending_approval` result to the
    agent instead of executing. The agent has no path to approve its own
-   action (spec §7, no-self-approval); only the CLI (`belay approvals
+   action (spec §7, no-self-approval); only the CLI (`rekha approvals
    list|approve|reject`) can resolve an item.
 5. **execute** (`SagaExecutor.run_step`) — the ordered step cycle: journal
    the step, run its (read-only) `capture`, call the real tool, record the
@@ -74,16 +74,16 @@ governed call, in order, each stage appending its own ledger event(s)
    alone (`executor/recovery.py`); idempotency keys prevent double-calling
    the upstream tool on retry.
 6. **ledger** — every stage above is a hash-chained, append-only event
-   (`ledger/store.py`); `belay verify` recomputes the chain and cross-checks
+   (`ledger/store.py`); `rekha verify` recomputes the chain and cross-checks
    per-step coherence (journal/capture/result/compensation) without calling
    any tool (`ledger/verify.py`, `replay.py`).
 
 ## Rewind (spec §10)
 
-`RewindService.rewind()` is a separate entry point (`belay rewind`, its own
+`RewindService.rewind()` is a separate entry point (`rekha rewind`, its own
 CLI/process) that: fences the session first (a `session_fenced` ledger event
-— fencing is a ledger fact, not in-memory state, because `belay run` and
-`belay rewind` are different processes sharing only the SQLite file);
+— fencing is a ledger fact, not in-memory state, because `rekha run` and
+`rekha rewind` are different processes sharing only the SQLite file);
 compensates committed steps in strict reverse `step_seq` order, each
 compensation itself a mini-step through the same `PolicyEngine` (an
 over-cap undo can pause, spec §12); runs any declared `verification`; and
@@ -94,23 +94,23 @@ honesty).
 
 ## Zero-config client connection (E22)
 
-`belay connect`/`belay disconnect` (`belay/cli/connection.py`) are a
+`rekha connect`/`rekha disconnect` (`rekha/cli/connection.py`) are a
 separate orchestration layer sitting *above* the proxy above, not a change
-to it: they generate a `belay wrap`/`belay run` runtime for the pinned,
-bundled Filesystem pack (`belay/bundled_packs.py`, wheel-shipped under
-`belay/packs/filesystem/`) and register it with whichever of Codex CLI /
+to it: they generate a `rekha wrap`/`rekha run` runtime for the pinned,
+bundled Filesystem pack (`rekha/bundled_packs.py`, wheel-shipped under
+`rekha/packs/filesystem/`) and register it with whichever of Codex CLI /
 Claude Code CLI / Claude Desktop are actually installed, through each
-client's own official mechanism (`belay/cli/client_registration.py`) —
-never by belay guessing at `~/.codex/config.toml`'s or `~/.claude.json`'s
+client's own official mechanism (`rekha/cli/client_registration.py`) —
+never by rekha guessing at `~/.codex/config.toml`'s or `~/.claude.json`'s
 internal shape itself (Claude Desktop, which has no CLI, is the one
 exception: a surgical `mcpServers.<name>` JSON merge).
 
 ```mermaid
 flowchart TB
-    Connect["belay connect\n(belay/cli/connection.py)"]
+    Connect["rekha connect\n(rekha/cli/connection.py)"]
     Connect --> Preflight["build runtime + real MCP\ninitialize/list_tools preflight\n(spawns the EXACT argv to be registered)"]
     Preflight -- pass --> Snapshot["snapshot every target\n(FileSnapshot: bytes + sha256, or absence)"]
-    Snapshot --> Manifest[("connecting\n.belay/connection.json")]
+    Snapshot --> Manifest[("connecting\n.rekha/connection.json")]
     Manifest --> Register["register each detected client\nvia its OWN official CLI\n(codex/claude adapters)"]
     Register --> Hooks["install project-scoped\nClaude Code hooks\n(.claude/settings.json)"]
     Hooks --> Verify["re-verify: read back each client's\nOWN recorded registration,\nreal MCP initialize/list_tools again"]
@@ -122,11 +122,11 @@ flowchart TB
     Rollback -- "a target changed\nconcurrently" --> Incomplete[("rollback_incomplete")]
 ```
 
-The manifest (`.belay/connection.json`, `belay/cli/connection_models.py`)
+The manifest (`.rekha/connection.json`, `rekha/cli/connection_models.py`)
 is the sole authority for `disconnect`/`repair`/`doctor`: every target it
 tracks carries a byte-exact before-snapshot and a post-write hash, so
-removal is always compare-and-swap (`belay disconnect`) — a target that
-changed since Belay's own last write is reported, never silently
+removal is always compare-and-swap (`rekha disconnect`) — a target that
+changed since Rekha's own last write is reported, never silently
 overwritten, and the connection is left `rollback_incomplete` instead of
 guessing which side of the conflict to keep. `inspect_connection` is
 read-only and distinguishes `healthy` / `missing` / `modified` /
@@ -134,14 +134,14 @@ read-only and distinguishes `healthy` / `missing` / `modified` /
 
 **Scope, said plainly:** current-directory-only, Filesystem-pack-only,
 one pinned upstream version — this is the single most common zero-config
-case, not a general pack installer (that remains `belay wrap`/`belay
-init`/`belay bootstrap` above, by hand, for any other upstream server).
+case, not a general pack installer (that remains `rekha wrap`/`rekha
+init`/`rekha bootstrap` above, by hand, for any other upstream server).
 Codex gets MCP-only protection: there is no Codex-side native-tool hook
-this integrates with, so `belay connect` never claims one.
+this integrates with, so `rekha connect` never claims one.
 
 ## Conformance
 
-`conformance/` (package `belay-conformance`) extracts every
+`conformance/` (package `rekha-conformance`) extracts every
 `@conformance(level=...)` test into a target-agnostic suite driven by a
-6-method `ConformanceTarget` adapter, so any MCP proxy — not just Belay —
+6-method `ConformanceTarget` adapter, so any MCP proxy — not just Rekha —
 can claim an L1/L2/L3 badge against the same tests. See `docs/spec.md` §13.

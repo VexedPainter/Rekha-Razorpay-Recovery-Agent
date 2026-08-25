@@ -3,7 +3,7 @@
 
 The fake CLI is a real, standalone, directly-executable script (never the
 real user's `codex`/`claude`) that understands just enough of the real
-`mcp add/get/list/remove` syntax to exercise `belay/cli/
+`mcp add/get/list/remove` syntax to exercise `rekha/cli/
 client_registration.py`'s adapters honestly -- including the `--scope user
 --transport stdio` flags Claude's real CLI inserts before `<name>` that
 Codex's doesn't. Each generated fake has its OWN fixed state/config/log

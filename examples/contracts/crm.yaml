@@ -1,4 +1,4 @@
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: crm.update
 summary: Overwrites a record's fields wholesale
 reversibility: reversible
@@ -20,7 +20,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: crm.create
 summary: Creates (or overwrites) a record
 reversibility: reversible
@@ -41,7 +41,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: crm.delete
 summary: Deletes a record
 reversibility: conditional
@@ -65,7 +65,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: crm.get
 summary: Reads one record by id
 reversibility: irreversible
@@ -77,7 +77,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: crm.export_records
 summary: Dumps every record
 reversibility: irreversible
@@ -88,7 +88,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: crm.import_records
 summary: Bulk-creates/overwrites records
 reversibility: irreversible
@@ -99,7 +99,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: crm.bulk_delete
 summary: Deletes every record with last_seen before a cutoff year
 reversibility: reversible

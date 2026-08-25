@@ -1,8 +1,8 @@
 # Example intent contract (adoption/DX, not spec-numbered) matching the
 # "add timezone to profile" scenario. `acceptance` is informational only
-# (read by a human / belay export-pr's PR body); only allowed_scope,
+# (read by a human / rekha export-pr's PR body); only allowed_scope,
 # forbidden_scope, forbidden_tools, and budgets.files_changed are actually
-# enforced (belay/intent/enforce.py) -- see belay/intent/model.py for why.
+# enforced (rekha/intent/enforce.py) -- see rekha/intent/model.py for why.
 intent: "Add timezone to user profile"
 acceptance:
   - "The user can select their timezone"

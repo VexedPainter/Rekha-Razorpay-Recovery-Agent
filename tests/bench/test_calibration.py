@@ -15,14 +15,14 @@ from __future__ import annotations
 import json
 
 import pytest
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.razorpay.forecast import RECOVERY_PROPOSED, record_proposal
-from belay.razorpay.webhooks import ingest, sign_payload
 from bench.calibration import render as render_calibration
 from bench.calibration import score
 from bench.evaluate import evaluate, keyword_baseline
 from bench.evaluate import render as render_evaluation
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.razorpay.forecast import RECOVERY_PROPOSED, record_proposal
+from rekha.razorpay.webhooks import ingest, sign_payload
 
 INR = "INR"
 SECRET = "cal_secret"
@@ -355,12 +355,12 @@ def test_calibration_is_a_deterministic_fold() -> None:
 
 def test_forecasts_are_recorded_by_the_control_plane_not_the_ai() -> None:
     """The AI cannot write its own track record -- an agent able to do that could
-    rewrite it. `recovery/` is forbidden from importing `belay.ledger`."""
+    rewrite it. `recovery/` is forbidden from importing `rekha.ledger`."""
     import ast
     from pathlib import Path
 
     forecast_module = (
-        Path(__file__).resolve().parents[2] / "belay" / "razorpay" / "forecast.py"
+        Path(__file__).resolve().parents[2] / "rekha" / "razorpay" / "forecast.py"
     )
     tree = ast.parse(forecast_module.read_text(encoding="utf-8"))
     imports = {

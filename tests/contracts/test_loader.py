@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
-from belay.contracts.loader import load_contract_set
-from belay.errors import BelayError
+from rekha.contracts.loader import load_contract_set
+from rekha.errors import RekhaError
 
 EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples" / "contracts"
 
@@ -60,7 +60,7 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
 
 
 CONTRACT_YAML = """
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fs.touch
 reversibility: irreversible
 effects:
@@ -72,7 +72,7 @@ effects:
 
 def test_set_hash_stable_across_differently_ordered_keys(tmp_path: Path) -> None:
     ordered = {
-        "belay_contract": "0.1",
+        "rekha_contract": "0.1",
         "tool": "fs.touch",
         "reversibility": "irreversible",
         "effects": [{"type": "create", "resource": "fs.file", "count": "1"}],
@@ -81,7 +81,7 @@ def test_set_hash_stable_across_differently_ordered_keys(tmp_path: Path) -> None
         "effects": ordered["effects"],
         "reversibility": ordered["reversibility"],
         "tool": ordered["tool"],
-        "belay_contract": ordered["belay_contract"],
+        "rekha_contract": ordered["rekha_contract"],
     }
     p1 = _write(tmp_path, "a.json", json.dumps(ordered))
     p2 = _write(tmp_path, "b.json", json.dumps(reordered))
@@ -90,7 +90,7 @@ def test_set_hash_stable_across_differently_ordered_keys(tmp_path: Path) -> None
 
 def test_set_hash_stable_across_yaml_and_json_input(tmp_path: Path) -> None:
     as_json = {
-        "belay_contract": "0.1",
+        "rekha_contract": "0.1",
         "tool": "fs.touch",
         "reversibility": "irreversible",
         "effects": [{"type": "create", "resource": "fs.file", "count": "1"}],
@@ -110,14 +110,14 @@ def test_one_byte_change_anywhere_changes_the_hash(tmp_path: Path) -> None:
 def test_unknown_field_in_contract_is_rejected_at_load_time(tmp_path: Path) -> None:
     bad = CONTRACT_YAML + "\nsurprise_field: true\n"
     path = _write(tmp_path, "bad.yaml", bad)
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         load_contract_set([path])
     assert exc_info.value.code == "contract_invalid"
 
 
 def test_invalid_reversibility_undo_combination_rejected_at_load_time(tmp_path: Path) -> None:
     bad = """
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fs.bad
 reversibility: irreversible
 undo:
@@ -128,14 +128,14 @@ effects:
     resource: fs.file
 """
     path = _write(tmp_path, "bad2.yaml", bad)
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         load_contract_set([path])
     assert exc_info.value.code == "contract_invalid"
 
 
 def test_malformed_yaml_is_contract_invalid(tmp_path: Path) -> None:
-    path = _write(tmp_path, "broken.yaml", "belay_contract: [unterminated")
-    with pytest.raises(BelayError) as exc_info:
+    path = _write(tmp_path, "broken.yaml", "rekha_contract: [unterminated")
+    with pytest.raises(RekhaError) as exc_info:
         load_contract_set([path])
     assert exc_info.value.code == "contract_invalid"
 
@@ -160,7 +160,7 @@ def test_yaml_list_of_contracts_loads_each_one(tmp_path: Path) -> None:
 
 def test_non_mapping_document_is_rejected(tmp_path: Path) -> None:
     path = _write(tmp_path, "notmap.yaml", "- 1\n- 2\n")
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         load_contract_set([path])
     assert exc_info.value.code == "contract_invalid"
 

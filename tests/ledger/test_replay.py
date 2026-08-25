@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from belay.ledger.model import EVENT_TYPES
-from belay.ledger.replay import replay
-from belay.ledger.store import LedgerStore
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from rekha.ledger.model import EVENT_TYPES
+from rekha.ledger.replay import replay
+from rekha.ledger.store import LedgerStore
 
 
 def test_replay_reconstructs_basic_session_state() -> None:

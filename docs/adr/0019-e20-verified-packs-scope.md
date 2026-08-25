@@ -5,11 +5,11 @@ Estado: aceptado
 
 ## Contexto
 
-`BELAY_V1_COMPLETE_SPEC.md`, sección 11 ("Verified action packs") y E20
-("Belay provee transacciones reales y útiles, no solo un framework").
+`REKHA_V1_COMPLETE_SPEC.md`, sección 11 ("Verified action packs") y E20
+("Rekha provee transacciones reales y útiles, no solo un framework").
 La especificación completa de un "pack" (§11.1) es sustancial: nombre,
 semver, versión de esquema, licencia, publisher, repositorio fuente y
-revisión inmutable, versiones de Belay/upstream soportadas, esquemas de
+revisión inmutable, versiones de Rekha/upstream soportadas, esquemas de
 entrada exactos, clasificación lectura/mutación, efectos declarados,
 procedimiento de captura de pre-estado, procedimiento de compensación,
 verificación post-acción y post-compensación, semántica de idempotencia
@@ -42,8 +42,8 @@ Filesystem + Git en esta pasada**.
   funcionando de punta a punta), NO la infraestructura de packaging
   completa de §11.** Concretamente:
   - `packs/filesystem/contracts.yaml` y `packs/git/contracts.yaml`:
-    conjuntos de `Contract` (formato `belay_contract: '0.1'` ya existente,
-    cargado por el `belay/contracts/loader.py` YA probado — ningún loader
+    conjuntos de `Contract` (formato `rekha_contract: '0.1'` ya existente,
+    cargado por el `rekha/contracts/loader.py` YA probado — ningún loader
     nuevo) apuntando a servidores MCP oficiales reales:
     `@modelcontextprotocol/server-filesystem` (npm) y `mcp-server-git`
     (PyPI).
@@ -65,7 +65,7 @@ Filesystem + Git en esta pasada**.
     declara — deriva silenciosa entre pack y upstream real, detectada,
     no asumida.
   - **NO se construyó:** índice de registro firmado, comprobación de
-    revocación, `belay pack install`/CLI de instalación, SDK de
+    revocación, `rekha pack install`/CLI de instalación, SDK de
     autoría, ni los trust states `official-verified`/
     `community-verified`/`revoked` (§11.2) — esa es infraestructura de
     release/hosting real (¿dónde vive el registro? ¿qué raíz de
@@ -75,7 +75,7 @@ Filesystem + Git en esta pasada**.
     refleja esto con honestidad: la falta de esa infraestructura, no una
     duda sobre si el pack funciona (sí funciona, con test real).
 
-- **PACK-001 Filesystem: la heurística de `belay draft-contracts` se
+- **PACK-001 Filesystem: la heurística de `rekha draft-contracts` se
   corrigió a mano en varios puntos reales, no se aceptó tal cual.**
   `edit_file` y `move_file` fueron marcadas irreversibles por la
   heurística ("no read counterpart") pero SÍ tienen undo bien definido
@@ -92,7 +92,7 @@ Filesystem + Git en esta pasada**.
   archivos nuevos con `irreversible` incondicional — verificado
   empíricamente que una captura fallida (`read_file` sobre un archivo
   inexistente, que responde `isError: true`) no aborta el paso en el
-  camino de ejecución real (`belay/proxy/server.py`'s executor nunca
+  camino de ejecución real (`rekha/proxy/server.py`'s executor nunca
   lanza excepción sobre `isError`, solo la devuelve).
 
 - **PACK-002 Git: alcance más pequeño que Filesystem, y es un hecho real
@@ -100,7 +100,7 @@ Filesystem + Git en esta pasada**.
   autoría.** Descubierto empíricamente, no asumido: `mcp-server-git`
   devuelve SOLO texto plano (`CallToolResult.structuredContent` siempre
   `None`) — la gramática de expresiones de contratos
-  (`belay/contracts/expressions.py`) solo soporta acceso por path a
+  (`rekha/contracts/expressions.py`) solo soporta acceso por path a
   datos estructurados, deliberadamente sin parsing de strings/regex
   (spec §4.3: "no código definido por el usuario en contratos"). Eso
   significa que ningún undo que necesite referenciar un valor capturado
@@ -117,7 +117,7 @@ Filesystem + Git en esta pasada**.
 ## Consecuencias
 
 - Dos packs reales, cargables, y probados de punta a punta contra
-  servidores MCP oficiales reales — la promesa central de E20 ("Belay
+  servidores MCP oficiales reales — la promesa central de E20 ("Rekha
   provee transacciones reales y útiles") cumplida de verdad, no
   simulada.
 - GitHub (PACK-003) y Odoo (PACK-004) quedan sin construir — necesitan

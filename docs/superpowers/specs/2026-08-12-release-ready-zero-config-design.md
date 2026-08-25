@@ -4,7 +4,7 @@
 
 ## Goal
 
-Make Belay honest and polished enough for a public prerelease while giving a
+Make Rekha honest and polished enough for a public prerelease while giving a
 user who already has Codex and/or Claude installed one command that creates a
 protected filesystem MCP connection without requiring manual TOML, JSON, hook,
 or contract configuration.
@@ -12,7 +12,7 @@ or contract configuration.
 The primary user experience is:
 
 ```text
-belay connect
+rekha connect
 ```
 
 The command protects the current directory with the packaged Filesystem
@@ -25,8 +25,8 @@ are not gated.
 - Installing or authenticating Codex, Claude Code, Claude Desktop, Node.js, or
   npm.
 - Claiming that Codex native shell or file-edit tools are intercepted. Codex is
-  protected only when it calls the Belay MCP server until Codex exposes a
-  verified native approval integration that Belay implements.
+  protected only when it calls the Rekha MCP server until Codex exposes a
+  verified native approval integration that Rekha implements.
 - Publishing to PyPI before the maintainer configures PyPI Trusted Publishing.
 - Rewriting or force-moving the existing public `v0.1.0` tag.
 - Silently weakening the historical `docs/plan.md` v0.1.0 Definition of Done.
@@ -34,14 +34,14 @@ are not gated.
 
 ## Existing foundations
 
-Belay already has most of the required primitives:
+Rekha already has most of the required primitives:
 
-- `belay wrap` creates a `WrapConfig` for an upstream MCP server.
-- `belay init` atomically renders client configurations and records backups and
+- `rekha wrap` creates a `WrapConfig` for an upstream MCP server.
+- `rekha init` atomically renders client configurations and records backups and
   manifests.
-- `belay detect`, `belay doctor`, `belay repair`, and `belay uninstall` provide
+- `rekha detect`, `rekha doctor`, `rekha repair`, and `rekha uninstall` provide
   lifecycle operations.
-- `belay hooks install` gates supported Claude Code native surfaces.
+- `rekha hooks install` gates supported Claude Code native surfaces.
 - `packs/filesystem/contracts.yaml` is exercised against the real official
   `@modelcontextprotocol/server-filesystem` server.
 - Codex and Claude Code both expose official `mcp add`, `get`, `list`, and
@@ -54,8 +54,8 @@ proxy, policy engine, contract format, or evidence path.
 
 ### 1. Connection orchestrator
 
-A focused module under `belay/cli/` owns connection orchestration rather than
-adding more lifecycle logic directly to the already-large `belay/cli/main.py`.
+A focused module under `rekha/cli/` owns connection orchestration rather than
+adding more lifecycle logic directly to the already-large `rekha/cli/main.py`.
 It exposes typed operations used by thin Typer commands:
 
 - `connect(project_dir, name=None)`
@@ -68,20 +68,20 @@ isolated homes. Production uses real subprocesses and platform paths.
 
 ### 2. Default protected server
 
-With no upstream arguments, Belay launches:
+With no upstream arguments, Rekha launches:
 
 ```text
 npx -y @modelcontextprotocol/server-filesystem@2026.7.10 <absolute-current-directory>
 ```
 
-The generated state lives under `<project>/.belay/`:
+The generated state lives under `<project>/.rekha/`:
 
-- `belay.wrap.json` — absolute upstream command, directory, contract path, and
+- `rekha.wrap.json` — absolute upstream command, directory, contract path, and
   ledger path.
-- `belay.db` — the evidence ledger.
-- `connection.json` — Belay-owned lifecycle manifest.
+- `rekha.db` — the evidence ledger.
+- `connection.json` — Rekha-owned lifecycle manifest.
 
-The verified Filesystem contracts are packaged as Belay package data so an
+The verified Filesystem contracts are packaged as Rekha package data so an
 installed wheel does not depend on the repository's top-level `packs/`
 directory. The source pack remains the canonical authoring copy; a packaging
 test prevents the bundled copy from drifting.
@@ -107,7 +107,7 @@ Registration is hybrid and uses each client's supported public surface:
 - **Claude Code:** invoke `claude mcp add --scope user --transport stdio` so a
   cloned project does not require an additional project-MCP approval. The CLI
   owns its user registration in `~/.claude.json`.
-- **Claude Desktop:** use Belay's existing atomic JSON merge, backup, and
+- **Claude Desktop:** use Rekha's existing atomic JSON merge, backup, and
   manifest machinery because it has a separate desktop configuration file.
 - **Claude Code native gate:** install the already-supported hooks after MCP
   registration in `<project>/.claude/settings.json`, not in a user-global hook
@@ -116,7 +116,7 @@ Registration is hybrid and uses each client's supported public surface:
   and database anchor. No Codex-native hook claim is added.
 
 The default registration name is derived deterministically from the canonical
-project path: `belay-<sanitized-directory-name>-<path-hash-8>`. Canonicalization
+project path: `rekha-<sanitized-directory-name>-<path-hash-8>`. Canonicalization
 uses `Path.resolve(strict=False)`, converts separators to `/`, and applies
 `os.path.normcase` on Windows while preserving POSIX case. The hash is the first
 eight lowercase hexadecimal characters of SHA-256 over the UTF-8 canonical
@@ -129,30 +129,30 @@ Source/wheel installations launch the current interpreter with an absolute
 wrap path:
 
 ```text
-<python> -m belay.cli.main run --config <project>/.belay/belay.wrap.json
+<python> -m rekha.cli.main run --config <project>/.rekha/rekha.wrap.json
 ```
 
 When `sys.frozen` is true, registrations instead launch the standalone binary
 directly:
 
 ```text
-<absolute-belay-or-belay.exe> run --config <project>/.belay/belay.wrap.json
+<absolute-rekha-or-rekha.exe> run --config <project>/.rekha/rekha.wrap.json
 ```
 
 No registration emitted by a frozen binary may reference a Python interpreter
-or `belay.cli.main`. The release matrix runs an end-to-end `connect` smoke with
+or `rekha.cli.main`. The release matrix runs an end-to-end `connect` smoke with
 each frozen Linux, macOS, and Windows artifact, a real pinned Filesystem MCP
 handshake, a fake detected client, and an isolated home/config directory.
 
-An unmanaged server with the requested name, or a Belay-managed server whose
-manifest names a different canonical project path, is a hard conflict. Belay
-never removes or overwrites it. A previously Belay-managed registration for the
+An unmanaged server with the requested name, or a Rekha-managed server whose
+manifest names a different canonical project path, is a hard conflict. Rekha
+never removes or overwrites it. A previously Rekha-managed registration for the
 same project is left unchanged when healthy or repaired from an exact pre-write
 snapshot when broken.
 
 ### 4. Transaction and rollback
 
-`belay connect` follows a prepare/validate/commit sequence:
+`rekha connect` follows a prepare/validate/commit sequence:
 
 1. Detect Codex, Claude Code, Claude Desktop, Node.js, and `npx` without
    writing.
@@ -162,8 +162,8 @@ snapshot when broken.
    handshake.
 5. Detect unmanaged or cross-project name collisions in every target client.
 6. Snapshot the exact bytes, existence state, and SHA-256 of every client and
-   hook config file that an official CLI or Belay renderer may change.
-7. Write `.belay/` state atomically.
+   hook config file that an official CLI or Rekha renderer may change.
+7. Write `.rekha/` state atomically.
 8. Register each detected client.
 9. Install project-scoped Claude Code hooks when Claude Code is detected.
 10. Verify each registration through the official client CLI where available
@@ -181,7 +181,7 @@ preflight snapshot and aborts that write on mismatch. Immediately after each
 successful client CLI or renderer action, it records the exact resulting bytes
 and SHA-256. Rollback proceeds in reverse order and restores the pre-transaction
 bytes (or absence) only when the current file still equals that action's
-recorded post-write bytes. A mismatch is a rollback conflict: Belay does not
+recorded post-write bytes. A mismatch is a rollback conflict: Rekha does not
 overwrite the concurrent edit, reports the affected path and managed server
 name, exits nonzero, and leaves the manifest in `rollback_incomplete` state for
 `doctor`/`disconnect` to reconcile. Official CLI `remove` operations are not
@@ -189,16 +189,16 @@ treated as sufficient rollback because they cannot reproduce comments,
 ordering, or other concurrent client settings. Pre-existing healthy
 registrations are never changed and are not included in rollback.
 
-The same compare-and-swap rules apply to `.belay/` runtime files. The command
+The same compare-and-swap rules apply to `.rekha/` runtime files. The command
 reports both the original failure and every rollback conflict or failure.
 
-`belay disconnect` reads the connection manifest and removes only matching
-Belay-managed registrations and project hooks. By default it retains all files
-under `.belay/`, including the evidence ledger, and changes `connection.json`
+`rekha disconnect` reads the connection manifest and removes only matching
+Rekha-managed registrations and project hooks. By default it retains all files
+under `.rekha/`, including the evidence ledger, and changes `connection.json`
 to `status: "disconnected"` with a UTC `disconnected_at` timestamp so ownership
 and future safe reconnection remain provable. `--purge-runtime` additionally
-removes only `.belay/belay.wrap.json` and `.belay/connection.json` after client
-and hook removal succeeds. It never deletes `.belay/belay.db`; this first slice
+removes only `.rekha/rekha.wrap.json` and `.rekha/connection.json` after client
+and hook removal succeeds. It never deletes `.rekha/rekha.db`; this first slice
 has no evidence-deletion option.
 
 ### 5. Verification and user output
@@ -210,7 +210,7 @@ Filesystem proxy: connected (C:\work\project)
 Codex: connected via user MCP configuration
 Claude Code: connected; native hooks installed
 Claude Desktop: connected
-Ledger: C:\work\project\.belay\belay.db
+Ledger: C:\work\project\.rekha\rekha.db
 
 Codex native shell/edit tools are outside this MCP gate.
 ```
@@ -333,7 +333,7 @@ All behavioral code follows red-green-refactor TDD.
 2. **CLI integration tests:** fake `codex`, `claude`, and `npx` executables log
    arguments and simulate success/failure without touching the real user home.
 3. **MCP integration:** a real filesystem server handshake proves that the
-   generated wrap exposes tools through Belay.
+   generated wrap exposes tools through Rekha.
 4. **Lifecycle regression:** repeated connect is a no-op/repair; disconnect
    removes only managed entries; partial failure rolls back.
 5. **Packaging smoke:** build and install only the wheel in an isolated

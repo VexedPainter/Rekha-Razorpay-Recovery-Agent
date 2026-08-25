@@ -25,8 +25,8 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from belay.finance.money import Money
 from pydantic import BaseModel, ConfigDict, Field
+from rekha.finance.money import Money
 
 
 class CauseClass(StrEnum):
@@ -186,7 +186,7 @@ class RecoveryStep(BaseModel):
 
     A REQUEST, NOT A SCHEDULE. Proposing a step does not reserve the right to take
     it. Every step is re-checked against the mandate, the caps and the velocity
-    limits at the moment it would run, by `belay.razorpay.sequence`. An approved
+    limits at the moment it would run, by `rekha.razorpay.sequence`. An approved
     plan is not a standing authorization to act four times.
     """
 
@@ -299,7 +299,7 @@ class RecoveryPlan(BaseModel):
 
     @property
     def total_expected_recovery(self) -> Money:
-        from belay.finance.money import total as sum_money
+        from rekha.finance.money import total as sum_money
 
         return sum_money(
             [proposal.expected_recovery for proposal in self.selected], currency=self.currency
@@ -307,7 +307,7 @@ class RecoveryPlan(BaseModel):
 
     @property
     def total_requested(self) -> Money:
-        from belay.finance.money import total as sum_money
+        from rekha.finance.money import total as sum_money
 
         return sum_money(
             [proposal.amount for proposal in self.selected], currency=self.currency

@@ -1,4 +1,4 @@
-# Belay Recovery
+# Rekha Recovery
 
 **An AI revenue recovery agent for Razorpay, with a deterministic financial control plane.**
 
@@ -23,7 +23,7 @@ and your money.
 ```
    AI proposes                     Control plane authorizes            Razorpay executes
 ┌─────────────────────┐        ┌────────────────────────────┐      ┌──────────────────┐
-│  recovery/          │        │  belay/                    │      │  razorpay-mcp-   │
+│  recovery/          │        │  rekha/                    │      │  razorpay-mcp-   │
 │                     │        │                            │      │  server (MIT)    │
 │  diagnose failure   │──MCP──▶│  merchant mandate          │─MCP─▶│                  │
 │  choose strategy    │        │  per-action ceiling        │      │  payment links   │
@@ -36,7 +36,7 @@ and your money.
    holds no credentials                pure functions                       │
                                               ▲                            │
                                     ┌─────────┴──────┬─────────────────────┘
-                                    │  belay/settlement/                     │
+                                    │  rekha/settlement/                     │
                                     │  three-way verification:               │
                                     │  authorized vs reported vs settled     │
                                     └────────────────────────────────────────┘
@@ -61,7 +61,7 @@ that could authorize, execute, or record.
 pip install -e ".[dev]"
 
 python examples/demo_recovery.py          # the whole loop, ~1 minute
-belay bench run                           # 7 adversarial scenarios
+rekha bench run                           # 7 adversarial scenarios
 python examples/demo_fanout.py            # the fan-out attack
 pytest                                    # 656 tests, ~50s
 ```
@@ -101,7 +101,7 @@ blurring them is how a recovery rate gets quietly inflated.
 
 ## The adversarial suite
 
-`belay bench run` — every scenario names the control that refused it. A test
+`rekha bench run` — every scenario names the control that refused it. A test
 asserting only "it was blocked" cannot distinguish a designed control from a
 coincidence.
 
@@ -147,7 +147,7 @@ webhook is the only record carrying both, so there is no shortcut that reads two
 legs — [there is a test proving it](tests/settlement/test_verify.py).
 
 ```bash
-belay settle-verify --recon recon.json     # matched / mismatched / pending / unverifiable
+rekha settle-verify --recon recon.json     # matched / mismatched / pending / unverifiable
 ```
 
 Verdicts follow the same honest four-value taxonomy the repository already used for
@@ -178,12 +178,12 @@ all pure functions of `(proposal, mandate, policy, ledger)`, so every one of the
 replayable and provable after the fact.
 
 `recovery/` is the only package permitted to call a model. In exchange it may not
-import `belay.ledger`, `belay.approvals`, `belay.policy`, `belay.executor`,
-`belay.settlement`, or `belay.finance.mandate`. It holds no Razorpay credentials.
+import `rekha.ledger`, `rekha.approvals`, `rekha.policy`, `rekha.executor`,
+`rekha.settlement`, or `rekha.finance.mandate`. It holds no Razorpay credentials.
 Its only route outward is an MCP client session against the governed proxy, and its
 only output is a proposal.
 
-`belay.finance.money` **is** allowed, and the distinction is the point: a mandate is
+`rekha.finance.money` **is** allowed, and the distinction is the point: a mandate is
 authority, `Money` is arithmetic. Forbidding a value type would push raw integers
 across the boundary and make the control plane guess their units — precisely the bug
 `Money` exists to prevent.
@@ -255,11 +255,11 @@ implied away.
 
 | Package | Responsibility | Determinism |
 |---|---|---|
-| `belay/` | contracts, planning, policy, approvals, idempotent execution, ledger, compensation | deterministic |
-| `belay/finance/` | `Money` (integer paise), `MerchantMandate` | deterministic |
-| `belay/policy/cumulative.py` | cumulative spend and velocity, folded from the ledger | deterministic, pure |
-| `belay/razorpay/` | webhook verification and ingestion | deterministic |
-| `belay/settlement/` | three-way verification | deterministic, pure |
+| `rekha/` | contracts, planning, policy, approvals, idempotent execution, ledger, compensation | deterministic |
+| `rekha/finance/` | `Money` (integer paise), `MerchantMandate` | deterministic |
+| `rekha/policy/cumulative.py` | cumulative spend and velocity, folded from the ledger | deterministic, pure |
+| `rekha/razorpay/` | webhook verification and ingestion | deterministic |
+| `rekha/settlement/` | three-way verification | deterministic, pure |
 | `recovery/` | AI diagnosis, strategy, prioritisation | **non-deterministic** |
 | `bench/` | adversarial scenarios and metrics | deterministic |
 | `conformance/` | target-agnostic L1/L2/L3 suite | deterministic |
@@ -292,12 +292,12 @@ Inherited intact, and load-bearing here:
 ## Verify any of this yourself
 
 ```bash
-belay verify recovery.db                      # recompute the hash chain
-belay webhooks recoveries --db recovery.db    # authorized vs actually paid
-belay settle-verify --recon recon.json        # three-way reconciliation
-belay bench metrics --db recovery.db          # every metric, folded from evidence
-belay bench run                               # the adversarial suite
-belay-conformance run --target belay --level 3
+rekha verify recovery.db                      # recompute the hash chain
+rekha webhooks recoveries --db recovery.db    # authorized vs actually paid
+rekha settle-verify --recon recon.json        # three-way reconciliation
+rekha bench metrics --db recovery.db          # every metric, folded from evidence
+rekha bench run                               # the adversarial suite
+rekha-conformance run --target rekha --level 3
 python scripts/traceability.py --check        # every spec MUST has a named test
 ```
 
@@ -305,9 +305,9 @@ Offline-verifiable signed evidence — a third party needs the file and a public
 nothing else. No database, no network, no trust in us:
 
 ```bash
-belay keygen demo.key
-belay verify-export <session-id> --db recovery.db --key demo.key -o evidence.json
-belay verify-evidence evidence.json
+rekha keygen demo.key
+rekha verify-export <session-id> --db recovery.db --key demo.key -o evidence.json
+rekha verify-evidence evidence.json
 # -> evidence: VALID (chain, coherence, signature, and summary all check out)
 ```
 
@@ -324,7 +324,7 @@ belay verify-evidence evidence.json
 
 ```bash
 cp .env.example .env      # add RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET (test mode)
-belay recover --live
+rekha recover --live
 ```
 
 `--live` wraps Razorpay's **remote** MCP server via `npx mcp-remote`, so no Docker

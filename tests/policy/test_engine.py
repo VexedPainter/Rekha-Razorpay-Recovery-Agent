@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from belay.clock import FixedClock
-from belay.finance.money import Money
-from belay.planner.model import EffectEstimate, Plan
-from belay.policy.engine import PolicyEngine
-from belay.policy.model import (
+from hypothesis import given
+from hypothesis import strategies as st
+from rekha.clock import FixedClock
+from rekha.finance.money import Money
+from rekha.planner.model import EffectEstimate, Plan
+from rekha.policy.engine import PolicyEngine
+from rekha.policy.model import (
     Cap,
     CapMatch,
     Defaults,
@@ -17,8 +19,6 @@ from belay.policy.model import (
     ToolRule,
     default_policy,
 )
-from hypothesis import given
-from hypothesis import strategies as st
 
 
 def _plan(
@@ -246,7 +246,7 @@ def test_unknown_top_level_field_in_policy_doc_is_rejected() -> None:
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        PolicyDoc.model_validate({"belay_policy": "0.1", "not_a_real_field": True})
+        PolicyDoc.model_validate({"rekha_policy": "0.1", "not_a_real_field": True})
 
 
 def test_unknown_effects_apply_default_verdict() -> None:

@@ -2,9 +2,9 @@
 
 `Lifecycle.start_session` requires an explicit `initiated_by`; it's bound
 once on `session_started` and surfaced session-wide via
-`belay.ledger.replay.replay`'s `SessionState` (see ADR 0014 for the
+`rekha.ledger.replay.replay`'s `SessionState` (see ADR 0014 for the
 storage-approach choice). E13 signing composes with it via
-`belay.ledger.signing.sign_session`/`verify_evidence`.
+`rekha.ledger.signing.sign_session`/`verify_evidence`.
 """
 
 from __future__ import annotations
@@ -14,14 +14,14 @@ from pathlib import Path
 
 import anyio
 import pytest
-from belay.cli.main import app
-from belay.contracts.model import ContractSet
-from belay.ledger.replay import replay
-from belay.ledger.signing import SignedEvidence, SigningKey, sign_session, verify_evidence
-from belay.ledger.store import LedgerStore
-from belay.proxy.lifecycle import Lifecycle
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from rekha.cli.main import app
+from rekha.contracts.model import ContractSet
+from rekha.ledger.replay import replay
+from rekha.ledger.signing import SignedEvidence, SigningKey, sign_session, verify_evidence
+from rekha.ledger.store import LedgerStore
+from rekha.proxy.lifecycle import Lifecycle
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -186,8 +186,8 @@ def test_cli_wrap_run_verify_evidence_surfaces_initiated_by(tmp_path: Path) -> N
     from mcp import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
-    db_path = tmp_path / "belay.db"
-    config_path = tmp_path / "belay.wrap.json"
+    db_path = tmp_path / "rekha.db"
+    config_path = tmp_path / "rekha.wrap.json"
 
     wrap_result = runner.invoke(
         app,
@@ -208,7 +208,7 @@ def test_cli_wrap_run_verify_evidence_surfaces_initiated_by(tmp_path: Path) -> N
 
     params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "belay.cli.main", "run", "--config", str(config_path)],
+        args=["-m", "rekha.cli.main", "run", "--config", str(config_path)],
         cwd=str(REPO_ROOT),
     )
 

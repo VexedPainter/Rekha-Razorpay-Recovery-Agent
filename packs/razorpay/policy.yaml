@@ -11,7 +11,7 @@
 #
 # Both must pass. They are not redundant: they answer to different people.
 
-belay_policy: "0.1"
+rekha_policy: "0.1"
 
 defaults:
   # spec §6.4. Every money-moving Razorpay action is irreversible or

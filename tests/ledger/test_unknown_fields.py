@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from belay.ledger.model import Event
-from belay.ledger.store import LedgerStore
+from rekha.ledger.model import Event
+from rekha.ledger.store import LedgerStore
 
 
 def test_unknown_payload_fields_survive_a_write_read_roundtrip() -> None:
@@ -24,6 +24,6 @@ def test_event_model_tolerates_unknown_envelope_fields() -> None:
         at="2026-07-22T00:00:00Z",
         prev_hash="0" * 64,
         hash="a" * 64,
-        belay_ledger_version="0.2",  # a hypothetical future envelope field
+        rekha_ledger_version="0.2",  # a hypothetical future envelope field
     )
-    assert event.model_dump()["belay_ledger_version"] == "0.2"
+    assert event.model_dump()["rekha_ledger_version"] == "0.2"

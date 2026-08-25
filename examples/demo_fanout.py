@@ -22,18 +22,18 @@ from pathlib import Path
 from typing import Any
 
 import anyio
-from belay.clock import SystemClock
-from belay.contracts.loader import load_contract_set
-from belay.errors import BelayError
-from belay.finance.mandate import load_mandate
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.ledger.verify import verify_chain, verify_coherence
-from belay.policy.cumulative import CumulativeTracker
-from belay.policy.model import PolicyDoc, ToolRule
-from belay.proxy.lifecycle import Lifecycle
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from rekha.clock import SystemClock
+from rekha.contracts.loader import load_contract_set
+from rekha.errors import RekhaError
+from rekha.finance.mandate import load_mandate
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.ledger.verify import verify_chain, verify_coherence
+from rekha.policy.cumulative import CumulativeTracker
+from rekha.policy.model import PolicyDoc, ToolRule
+from rekha.proxy.lifecycle import Lifecycle
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SANDBOX = REPO_ROOT / "examples" / "razorpay-sandbox" / "server.py"
@@ -105,7 +105,7 @@ async def main() -> int:
         print()
 
         created = 0
-        refusal: BelayError | None = None
+        refusal: RekhaError | None = None
         for index in range(ATTEMPTS):
             try:
                 outcome = await lifecycle.govern_and_execute(
@@ -120,7 +120,7 @@ async def main() -> int:
                     read_only_hint=False,
                     executor=upstream,
                 )
-            except BelayError as exc:
+            except RekhaError as exc:
                 refusal = exc
                 print(f"  link {index + 1:>2}  REFUSED -- {exc.code}")
                 break

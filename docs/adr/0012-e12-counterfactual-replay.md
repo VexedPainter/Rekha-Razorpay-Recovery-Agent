@@ -5,11 +5,11 @@ Estado: aceptado
 
 ## Contexto
 
-`docs/plan-v2.md` sección "E12 -- Counterfactual replay": `belay rewind`
+`docs/plan-v2.md` sección "E12 -- Counterfactual replay": `rekha rewind`
 responde "deshaz lo que realmente pasó"; nada respondía "¿qué habría pasado
 si un humano hubiera aprobado/denegado/acotado distinto en el momento de la
 decisión?" -- sin tocar producción, sin re-llamar al upstream real, sin
-necesidad de haber corrido la ruta alternativa de verdad. Belay ya tiene la
+necesidad de haber corrido la ruta alternativa de verdad. Rekha ya tiene la
 base determinista ledger+replay (spec §9.4, E2) que ninguna herramienta
 competidora tiene; E12 construye la feature diferenciadora encima de eso.
 
@@ -65,7 +65,7 @@ competidora tiene; E12 construye la feature diferenciadora encima de eso.
   no-op, la garantía se sostiene siempre. Este es el test más fuerte del
   entrega -- si algún cambio futuro rompe la regla de honestidad de forma
   sutil, este test lo detecta sin necesidad de enumerar casos concretos.
-- **Reusa `belay.ledger.replay.replay()`, no reimplementa el fold.**
+- **Reusa `rekha.ledger.replay.replay()`, no reimplementa el fold.**
   `real_final_state = replay(events)` es literalmente la función de E2/§9.4
   aplicada a los eventos reales, sin ninguna copia paralela. Para el estado
   final del branch cuando el override realmente diverge, tampoco se
@@ -79,7 +79,7 @@ competidora tiene; E12 construye la feature diferenciadora encima de eso.
   estado final "real" del branch más allá de ese punto).
 - **Reusa `Basis` (E4/E11), extendiéndolo con un único literal nuevo
   (`"simulated"`), no un enum paralelo.** `CounterfactualBasis = Basis |
-  Literal["simulated"]` en `belay/ledger/counterfactual.py` -- mismo patrón
+  Literal["simulated"]` en `rekha/ledger/counterfactual.py` -- mismo patrón
   que E11 extendió `Basis` con `"sql_simulator"` (ADR 0011): un tipo
   existente, un caso adicional documentado donde ese tipo no alcanza (una
   llamada que *nunca ocurrió* no puede tener una base `contract` real, que
@@ -95,7 +95,7 @@ competidora tiene; E12 construye la feature diferenciadora encima de eso.
   `Plan`/`PolicyDoc` completo solo para volver a evaluarlo: el punto de la
   feature es "¿qué habría cambiado si el veredicto hubiera sido otro?", no
   "¿qué habría decidido el motor con una política distinta?" (eso ya lo
-  cubre `belay plan --policy <otro>`, spec §6). Si un caso de uso futuro
+  cubre `rekha plan --policy <otro>`, spec §6). Si un caso de uso futuro
   necesita bifurcar sobre una política *distinta* en vez de un veredicto
   distinto, ese es un modo nuevo de `run_counterfactual`, no una
   reimplementación de `PolicyEngine` aquí.
@@ -121,19 +121,19 @@ competidora tiene; E12 construye la feature diferenciadora encima de eso.
   `test_immutability_row_count_unchanged_and_no_upstream_calls` (conteo de
   filas antes/después de una llamada real a SQLite, idéntico) y
   `tests/cli/test_counterfactual.py::
-  test_counterfactual_against_a_real_belay_run_session_leaves_ledger_untouched`
-  (fixture real de un proceso `belay run` vía stdio, conteo de filas
-  idéntico, `belay verify` sigue OK después).
+  test_counterfactual_against_a_real_rekha_run_session_leaves_ledger_untouched`
+  (fixture real de un proceso `rekha run` vía stdio, conteo de filas
+  idéntico, `rekha verify` sigue OK después).
 - **Punto de bifurcación inválido: error claro, nunca un reporte vacío
   silencioso.** `at_step_seq` debe corresponder a un evento
   `policy_evaluated` real de esa sesión; si no, `InvalidForkPoint` (subclase
-  de `ValueError`) se lanza de inmediato. `belay counterfactual` la atrapa
-  y sale con código 1 y un mensaje de error, igual que `belay approvals
-  approve` ante un `BelayError`.
+  de `ValueError`) se lanza de inmediato. `rekha counterfactual` la atrapa
+  y sale con código 1 y un mensaje de error, igual que `rekha approvals
+  approve` ante un `RekhaError`.
   Test: `test_invalid_fork_point_raises_clear_error_not_silent_empty_report`.
-- **CLI: `belay counterfactual <session_id> --at-step <n> --override
+- **CLI: `rekha counterfactual <session_id> --at-step <n> --override
   '<json>' [--json] [--db <path>]`, solo lectura.** Nunca requiere un
-  `belay run` vivo (lee el ledger una sola vez, como `belay verify`), nunca
+  `rekha run` vivo (lee el ledger una sola vez, como `rekha verify`), nunca
   abre una conexión al upstream. `--db` sigue el mismo patrón que
   `approvals list/approve/reject` en vez de `--config` (no necesita el
   `WrapConfig` del upstream para nada, solo el path del ledger).
@@ -146,12 +146,12 @@ competidora tiene; E12 construye la feature diferenciadora encima de eso.
 - `docs/adr/0007-e7-rewind.md` (el precedente de honestidad que este entrega
   iguala en espíritu), `docs/adr/0004-e4-planner-policy.md` y
   `docs/adr/0011-e11-sql-dry-run.md` (el precedente de `Basis`).
-- Código: `belay/ledger/counterfactual.py` (`CounterfactualBranch`,
-  `run_counterfactual`, `CounterfactualReport`), `belay/cli/main.py`
+- Código: `rekha/ledger/counterfactual.py` (`CounterfactualBranch`,
+  `run_counterfactual`, `CounterfactualReport`), `rekha/cli/main.py`
   (`counterfactual`).
 - Tests: `tests/ledger/test_counterfactual.py` (7 casos + la propiedad
   Hypothesis), `tests/cli/test_counterfactual.py` (fixture real, marcado
   `@pytest.mark.slow`).
 - Demo: `examples/demo_counterfactual.py` (bulk-delete real + rewind
-  seguido de "¿y si hubiera denegado?" vía `belay counterfactual`, corrido
-  de punta a punta contra un `belay run` real).
+  seguido de "¿y si hubiera denegado?" vía `rekha counterfactual`, corrido
+  de punta a punta contra un `rekha run` real).

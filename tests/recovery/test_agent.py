@@ -15,14 +15,14 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from belay.contracts.loader import load_contract_set
-from belay.finance.mandate import MerchantMandate
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.policy.model import PolicyDoc, ToolRule, load_policy
-from belay.proxy.lifecycle import Lifecycle
 from recovery.agent import Outcome, run_recovery
 from recovery.proposal import CauseClass, Confidence, RecoveryProposal, Strategy
+from rekha.contracts.loader import load_contract_set
+from rekha.finance.mandate import MerchantMandate
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.policy.model import PolicyDoc, ToolRule, load_policy
+from rekha.proxy.lifecycle import Lifecycle
 
 PACK = "packs/razorpay/contracts.yaml"
 POLICY = "packs/razorpay/policy.yaml"
@@ -208,7 +208,7 @@ async def test_below_the_threshold_executes_and_above_it_pauses() -> None:
     assert run.requested_value == Money.from_major("1500.00", INR)
     assert run.pending_value == Money.from_major("4000.00", INR)
 
-    from belay.ledger.verify import verify_chain, verify_coherence
+    from rekha.ledger.verify import verify_chain, verify_coherence
 
     events = ledger.read("s_agent")
     assert verify_chain(events).ok

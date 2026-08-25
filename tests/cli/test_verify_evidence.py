@@ -1,8 +1,8 @@
-"""`belay keygen`/`verify-export`/`verify-evidence` (plan-v2 E13).
+"""`rekha keygen`/`verify-export`/`verify-evidence` (plan-v2 E13).
 
 The round-trip is proved with a real CLI invocation against a real SQLite
-ledger, then verified in a directory with no `belay.db` anywhere near it --
-the "no Belay installation needed" claim, tested literally.
+ledger, then verified in a directory with no `rekha.db` anywhere near it --
+the "no Rekha installation needed" claim, tested literally.
 """
 
 from __future__ import annotations
@@ -10,8 +10,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from belay.cli.main import app
-from belay.ledger.store import LedgerStore
+from rekha.cli.main import app
+from rekha.ledger.store import LedgerStore
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -38,7 +38,7 @@ def test_keygen_writes_a_private_key_and_a_separate_pub_file(tmp_path: Path) -> 
 def test_verify_export_then_verify_evidence_roundtrip_in_a_db_free_directory(
     tmp_path: Path,
 ) -> None:
-    db_path = tmp_path / "belay.db"
+    db_path = tmp_path / "rekha.db"
     _seed(db_path)
 
     key_path = tmp_path / "signing.key"
@@ -61,13 +61,13 @@ def test_verify_export_then_verify_evidence_roundtrip_in_a_db_free_directory(
     assert export_result.exit_code == 0, export_result.output
     assert evidence_path.exists()
 
-    # Move the evidence + pubkey into a fresh directory with no belay.db at all.
+    # Move the evidence + pubkey into a fresh directory with no rekha.db at all.
     clean_dir = tmp_path / "clean_no_db"
     clean_dir.mkdir()
     shutil.copy(evidence_path, clean_dir / "evidence.json")
     shutil.copy(tmp_path / "signing.key.pub", clean_dir / "signing.key.pub")
 
-    assert not (clean_dir / "belay.db").exists()
+    assert not (clean_dir / "rekha.db").exists()
     assert list(clean_dir.glob("*.db")) == []
 
     verify_result = runner.invoke(
@@ -85,7 +85,7 @@ def test_verify_export_then_verify_evidence_roundtrip_in_a_db_free_directory(
 
 
 def test_verify_evidence_reports_precise_tamper_stage(tmp_path: Path) -> None:
-    db_path = tmp_path / "belay.db"
+    db_path = tmp_path / "rekha.db"
     _seed(db_path)
     key_path = tmp_path / "signing.key"
     runner.invoke(app, ["keygen", str(key_path)])
@@ -117,7 +117,7 @@ def test_verify_evidence_reports_precise_tamper_stage(tmp_path: Path) -> None:
 
 
 def test_verify_export_with_no_events_for_session_fails_cleanly(tmp_path: Path) -> None:
-    db_path = tmp_path / "belay.db"
+    db_path = tmp_path / "rekha.db"
     _seed(db_path)
     key_path = tmp_path / "signing.key"
     runner.invoke(app, ["keygen", str(key_path)])

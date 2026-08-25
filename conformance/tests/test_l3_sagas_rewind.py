@@ -8,9 +8,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from belay.contracts.loader import load_contract_set
-from belay.executor.saga import SagaStep
-from belay.ledger.verify import verify_chain, verify_coherence
+from rekha.contracts.loader import load_contract_set
+from rekha.executor.saga import SagaStep
+from rekha.ledger.verify import verify_chain, verify_coherence
 
 from conformance.target import ConformanceTarget
 from conformance.tests.fakes import make_crm_executor

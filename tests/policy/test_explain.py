@@ -1,4 +1,4 @@
-"""Tests for `belay/policy/explain.py` (plan-v2 E16): blast-radius self-explanation.
+"""Tests for `rekha/policy/explain.py` (plan-v2 E16): blast-radius self-explanation.
 
 `explain()` is a PURE FORMATTING function -- these tests assert every number
 in its output is byte-for-byte traceable back to the real `PolicyResult`
@@ -10,13 +10,15 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime, timedelta
 
-from belay.clock import FixedClock
-from belay.contracts.model import Contract, Effect, SqlHint, Undo
-from belay.ledger.store import LedgerStore
-from belay.planner.model import EffectEstimate, Plan
-from belay.policy.engine import PolicyEngine
-from belay.policy.explain import Explanation, explain
-from belay.policy.model import (
+from hypothesis import given, settings
+from hypothesis import strategies as st
+from rekha.clock import FixedClock
+from rekha.contracts.model import Contract, Effect, SqlHint, Undo
+from rekha.ledger.store import LedgerStore
+from rekha.planner.model import EffectEstimate, Plan
+from rekha.policy.engine import PolicyEngine
+from rekha.policy.explain import Explanation, explain
+from rekha.policy.model import (
     Cap,
     CapMatch,
     Defaults,
@@ -24,8 +26,6 @@ from belay.policy.model import (
     QuotaDefaults,
     default_policy,
 )
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 NOW = datetime(2026, 7, 22, 12, 0, 0, tzinfo=UTC)
 
@@ -194,7 +194,7 @@ def test_allow_verdict_has_empty_dimensions_and_no_fabricated_concern() -> None:
 
 def _conditional_contract_with_args_condition() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.delete",
         reversibility="conditional",
         conditions=["$args.confirm == true"],
@@ -205,7 +205,7 @@ def _conditional_contract_with_args_condition() -> Contract:
 
 def _reversible_contract_with_sql_args_param() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.bulk_delete",
         reversibility="reversible",
         undo=Undo(tool="crm.import_records", args={}),
@@ -219,7 +219,7 @@ def _reversible_contract_with_sql_args_param() -> Contract:
 
 def _no_narrowing_contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.export_records",
         reversibility="irreversible",
         effects=[Effect(type="read", resource="crm.record")],

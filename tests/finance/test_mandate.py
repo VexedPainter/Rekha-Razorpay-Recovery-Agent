@@ -1,4 +1,4 @@
-"""`belay/finance/mandate.py` -- the merchant's grant of authority.
+"""`rekha/finance/mandate.py` -- the merchant's grant of authority.
 
 The most important test in this file is
 `test_a_refund_is_refused_even_though_the_tool_exists`: it is the mechanism
@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import pytest
 import yaml
-from belay.errors import BelayError
-from belay.finance.mandate import (
+from rekha.errors import RekhaError
+from rekha.finance.mandate import (
     MerchantMandate,
     check_mandate,
     load_mandate,
 )
-from belay.finance.money import Money
+from rekha.finance.money import Money
 
 
 def _mandate(**overrides: object) -> MerchantMandate:
@@ -189,7 +189,7 @@ def test_no_threshold_means_no_mandate_driven_approval() -> None:
 
 
 def test_a_mandate_whose_currencies_disagree_is_refused_at_load_time() -> None:
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         _mandate(currency="INR", max_per_action=Money.from_major("50.00", "USD"))
     assert excinfo.value.code == "mandate_violation"
     assert excinfo.value.detail["field"] == "max_per_action"
@@ -197,7 +197,7 @@ def test_a_mandate_whose_currencies_disagree_is_refused_at_load_time() -> None:
 
 def test_per_action_above_cumulative_is_refused() -> None:
     """If one action may exceed the daily budget, one of the two numbers is wrong."""
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         _mandate(
             max_per_action=Money.from_major("60000.00", "INR"),
             max_cumulative=Money.from_major("50000.00", "INR"),
@@ -206,7 +206,7 @@ def test_per_action_above_cumulative_is_refused() -> None:
 
 
 def test_an_action_both_allowed_and_forbidden_is_refused() -> None:
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         _mandate(
             allowed_actions=["create_refund"],
             forbidden_actions=["create_refund"],
@@ -215,7 +215,7 @@ def test_an_action_both_allowed_and_forbidden_is_refused() -> None:
 
 
 def test_a_negative_limit_is_refused() -> None:
-    with pytest.raises(BelayError):
+    with pytest.raises(RekhaError):
         _mandate(max_per_action=Money(minor_units=-1, currency="INR"))
 
 

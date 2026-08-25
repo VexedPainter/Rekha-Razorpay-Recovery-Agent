@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from belay.ledger.redact import redact
+from rekha.ledger.redact import redact
 
 
 def test_redacted_field_never_appears_in_cleartext() -> None:

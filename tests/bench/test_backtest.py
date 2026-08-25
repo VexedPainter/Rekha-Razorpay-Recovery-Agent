@@ -13,7 +13,6 @@ The properties worth pinning are about honesty rather than arithmetic:
 from __future__ import annotations
 
 import pytest
-from belay.razorpay.sequence import ContactPolicy
 from bench.backtest import (
     _attempt_succeeds,
     _brier,
@@ -22,6 +21,7 @@ from bench.backtest import (
     render_sweep,
     run,
 )
+from rekha.razorpay.sequence import ContactPolicy
 
 
 def test_the_backtest_produces_a_sample_worth_reading() -> None:

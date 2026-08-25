@@ -7,8 +7,8 @@ Estado: aceptado
 
 E4 implementa `docs/spec.md` §5 (Effect plans) y §6 (Policies), según
 `docs/plan.md` sección "E4 — Planner y motor de políticas". Reemplaza los
-stubs `PlanStage`/`PolicyStage` de E3 (`belay/proxy/lifecycle.py`) por
-`belay/planner/{model,planner}.py` y `belay/policy/{model,engine}.py` reales.
+stubs `PlanStage`/`PolicyStage` de E3 (`rekha/proxy/lifecycle.py`) por
+`rekha/planner/{model,planner}.py` y `rekha/policy/{model,engine}.py` reales.
 `ApprovalStage` sigue siendo el stub de E3 (E5 lo implementa).
 
 ## Decisiones
@@ -24,7 +24,7 @@ stubs `PlanStage`/`PolicyStage` de E3 (`belay/proxy/lifecycle.py`) por
   como "issue futuro documentado" y §11 lo lista para después de v0.1. El
   literal `"dry_run"` se mantiene en el tipo `Basis` por compatibilidad hacia
   adelante, pero ningún código de este entrega lo produce; ver el comentario
-  `# ponytail:` en `belay/planner/planner.py`.
+  `# ponytail:` en `rekha/planner/planner.py`.
 - **El planner no reimplementa la regla por defecto de §4.6.** En vez de que
   `Planner.plan()` vuelva a resolver el contrato desde un `ContractSet`,
   recibe el resultado ya calculado por `resolve()` (E3) a través de
@@ -66,20 +66,20 @@ stubs `PlanStage`/`PolicyStage` de E3 (`belay/proxy/lifecycle.py`) por
   (spec: "relaxations are configuration, visible in the ledger"). Tests:
   `tests/policy/test_engine.py::test_tool_rule_relaxes_irreversible_default_and_is_recorded`,
   `tests/proxy/test_lifecycle.py::test_irreversible_relaxation_is_recorded_as_config_override`.
-- **Reloj inyectable (`belay/clock.py`) en vez de `datetime.now()` disperso.**
+- **Reloj inyectable (`rekha/clock.py`) en vez de `datetime.now()` disperso.**
   `Clock` es un `Protocol` con un único método `now()`; `SystemClock` en
   producción, `FixedClock` en tests (mutable via `.set()`, para simular el
   paso del tiempo sin `sleep`). Tanto `Planner` (expiración de plan, §5.4)
   como `PolicyEngine` (quiet hours, §6.1) lo reciben por constructor. Ningún
-  módulo de `belay/planner` o `belay/policy` importa `datetime.now`
+  módulo de `rekha/planner` o `rekha/policy` importa `datetime.now`
   directamente — es la única forma en que
   `tests/planner/test_planner.py::test_plan_expiration_rejects_execution_after_ttl`
   y `tests/policy/test_engine.py::test_quiet_hours_pauses_matching_effect_in_window`
   son deterministas.
 - **Expiración y mismatch de plan (§5.4) como función libre, no método de
   `Plan`.** `check_plan_binding(plan, tool, args, clock=...)` en
-  `belay/planner/planner.py`: primero compara `args` contra `plan.args` vía
-  serialización canónica (`belay.canonical.canonical_bytes`, la misma base
+  `rekha/planner/planner.py`: primero compara `args` contra `plan.args` vía
+  serialización canónica (`rekha.canonical.canonical_bytes`, la misma base
   que `set_hash`/hash de ledger) — "byte-identical" se interpreta
   literalmente como igualdad de bytes canónicos, no solo `==` de dicts de
   Python — y solo si coincide comprueba expiración. El orden importa: un
@@ -92,27 +92,27 @@ stubs `PlanStage`/`PolicyStage` de E3 (`belay/proxy/lifecycle.py`) por
   es una función pura de `(plan, policy)`: no tiene acceso a un acumulador
   entre llamadas de la misma sesión. Cada cap se evalúa contra los efectos
   de un único plan (semántica `per: call` de facto), documentado con un
-  comentario `# ponytail:` en `belay/policy/model.py::Cap`. Añadir un
+  comentario `# ponytail:` en `rekha/policy/model.py::Cap`. Añadir un
   acumulador real requiere leer el ledger de la sesión (o mantener estado en
   `Lifecycle`) — se deja para cuando un caso de uso concreto (ej. el tope de
   gasto `spend`/`session` del ejemplo de la spec) lo necesite de verdad.
 - **`deny` bloquea en E4; `pause` todavía no (ese es trabajo de E5).**
-  `Lifecycle.govern_and_execute()` lanza `BelayError("policy_denied")`
+  `Lifecycle.govern_and_execute()` lanza `RekhaError("policy_denied")`
   inmediatamente si `PolicyEngine` decide `deny`, incluyendo el evento
   `step_failed` correspondiente. `pause` se registra en `policy_evaluated`
   (`requires_approval: true`) pero `ApprovalStage.maybe_park()` sigue siendo
   el no-op de E3 — parquear de verdad en la cola de aprobaciones es el
   alcance de E5, que reemplazará `ApprovalStage` sin tocar `Lifecycle` ni
   `PlanStage`/`PolicyStage`.
-- **`belay plan <tool> --args '<json>'` no necesita un upstream conectado.**
+- **`rekha plan <tool> --args '<json>'` no necesita un upstream conectado.**
   El comando CLI construye un `Planner`/`PolicyEngine` de un solo uso,
-  resuelve el contrato desde el `ContractSet` de `belay.wrap.json`, y no pasa
+  resuelve el contrato desde el `ContractSet` de `rekha.wrap.json`, y no pasa
   `native_dry_run` (no hay conexión MCP viva desde el CLI) — imprime siempre
   un plan de base `contract` (o efectos implícitos si el tool no tiene
   contrato). Política opcional vía `--policy <path>`; sin ella usa
   `default_policy()` (§6.4 tal cual). Carga de política
-  (`belay.policy.model.load_policy`) no envuelve errores de validación en
-  `BelayError`: es una herramienta de operador, no una llamada que cruza el
+  (`rekha.policy.model.load_policy`) no envuelve errores de validación en
+  `RekhaError`: es una herramienta de operador, no una llamada que cruza el
   borde del proxy hacia el agente, así que los 17 códigos de §11 no aplican
   aquí.
 
@@ -120,9 +120,9 @@ stubs `PlanStage`/`PolicyStage` de E3 (`belay/proxy/lifecycle.py`) por
 
 - `docs/spec.md` §5 (Effect plans), §6 (Policies).
 - `docs/plan.md` sección "E4 — Planner y motor de políticas".
-- Código: `belay/clock.py`, `belay/planner/{model,planner}.py`,
-  `belay/policy/{model,engine}.py`, `belay/proxy/lifecycle.py`,
-  `belay/cli/main.py` (`plan`).
+- Código: `rekha/clock.py`, `rekha/planner/{model,planner}.py`,
+  `rekha/policy/{model,engine}.py`, `rekha/proxy/lifecycle.py`,
+  `rekha/cli/main.py` (`plan`).
 - Tests: `tests/planner/test_planner.py`, `tests/policy/test_engine.py`,
   `tests/proxy/test_lifecycle.py` (casos añadidos en E4),
   `tests/cli/test_plan.py`.

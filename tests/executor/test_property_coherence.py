@@ -4,17 +4,17 @@ produces a ledger that passes `verify_coherence` (spec §9.2, plan.md E6)."""
 from __future__ import annotations
 
 import anyio
-from belay.contracts.model import Contract, Effect, Undo
-from belay.executor.saga import SagaExecutor, SagaStep
-from belay.ledger.store import LedgerStore
-from belay.ledger.verify import verify_coherence
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+from rekha.contracts.model import Contract, Effect, Undo
+from rekha.executor.saga import SagaExecutor, SagaStep
+from rekha.ledger.store import LedgerStore
+from rekha.ledger.verify import verify_coherence
 
 
 def _reversible_contract(tool: str) -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool=tool,
         reversibility="reversible",
         undo=Undo(tool=tool, args={"undo": True}),
@@ -24,7 +24,7 @@ def _reversible_contract(tool: str) -> Contract:
 
 def _irreversible_contract(tool: str) -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool=tool,
         reversibility="irreversible",
         effects=[Effect(type="delete", resource="thing", count="1")],

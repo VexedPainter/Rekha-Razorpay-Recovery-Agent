@@ -14,17 +14,17 @@ remains unbuilt -- see R1.7.4's own section.
 R1.6 ("correctness lock", see `CHANGELOG.md`) closed six concrete gaps in
 the Native Agent Gate (hooks) path, including `ApprovalQueue.consume()` —
 a compare-and-swap single-use approval lease
-(`belay/approvals/queue.py`), and `_prestate_digest` — a content-based
+(`rekha/approvals/queue.py`), and `_prestate_digest` — a content-based
 working-tree fingerprint folded into `repo_identity`
-(`belay/hooks/claude_code_adapter.py`). A post-merge review correctly
-judged R1.6 as real hardening, not "R1 done": Belay still runs two
+(`rekha/hooks/claude_code_adapter.py`). A post-merge review correctly
+judged R1.6 as real hardening, not "R1 done": Rekha still runs two
 separate decision engines --
 
-- the **MCP proxy** (`belay wrap`/`belay run`, mediated: Belay itself
-  makes the call) -- `belay/proxy/lifecycle.py::Lifecycle`, and
-- the **Native Agent Gate** (`belay hooks install`, observed: Claude Code
-  makes the call, Belay only decides whether it was allowed) --
-  `belay/hooks/gate.py`.
+- the **MCP proxy** (`rekha wrap`/`rekha run`, mediated: Rekha itself
+  makes the call) -- `rekha/proxy/lifecycle.py::Lifecycle`, and
+- the **Native Agent Gate** (`rekha hooks install`, observed: Claude Code
+  makes the call, Rekha only decides whether it was allowed) --
+  `rekha/hooks/gate.py`.
 
 The proposed next step is a canonical transaction protocol both engines
 would eventually run through: `ActionEnvelope`, `ActionPlan`,
@@ -33,21 +33,21 @@ would eventually run through: `ActionEnvelope`, `ActionPlan`,
 COMMITTED` state machine (with `DENIED`/`EXPIRED`/`FAILED`/
 `INDETERMINATE`/`COMPENSATED` as alternate outcomes).
 
-A full-repo exploration of the MCP proxy path (`belay/proxy/lifecycle.py`,
-`belay/planner/`, `belay/policy/`, `belay/executor/saga.py`,
-`belay/executor/recovery.py`, `belay/ledger/`, `belay/rewind/service.py`,
-`belay/cli/causal.py`, `belay/cli/export_pr.py`) found this protocol is
+A full-repo exploration of the MCP proxy path (`rekha/proxy/lifecycle.py`,
+`rekha/planner/`, `rekha/policy/`, `rekha/executor/saga.py`,
+`rekha/executor/recovery.py`, `rekha/ledger/`, `rekha/rewind/service.py`,
+`rekha/cli/causal.py`, `rekha/cli/export_pr.py`) found this protocol is
 genuinely large -- it touches nearly every module -- and that much of it
 already exists, in embryonic and disconnected form, rather than needing
 to be invented from nothing:
 
 | Canonical concept | Existing analogue | Gap |
 |---|---|---|
-| `ActionEnvelope` | None -- `HookEvent` (`belay/supervisor/protocol.py`) and the MCP proxy's ad-hoc `(tool, args, session_id, cwd)` inputs are two independent shapes | Genuinely new; needs a shared parent both normalize into |
-| `ActionPlan` | `belay/planner/model.py::Plan` (`plan_id`, `effects: list[EffectEstimate]`, `reversibility`, `policy_verdict`, `confidence`, `expires_at`) | Only the MCP proxy path produces one; hooks' `evaluate_file_edit`/`evaluate_mcp_call` do their own bespoke contract-presence check instead of calling `Planner.plan()`/`PolicyEngine.evaluate()` |
-| `CapabilityLease` | `ApprovalQueue.consume()` + `ApprovalItem.consumed_by_event_id`/`consumed_at`/`consumed_by_host`/`consumed_policy_hash` (R1.6) | Only the hooks path uses it -- `belay/proxy/lifecycle.py::ApprovalStage.check()` still treats `state == "approved"` as an unconditional, unlimited-reuse pass. **This is the gap R1.7.1 (below) closes.** |
-| `OutcomeEvidence` | `SagaExecutor`'s six ledger-event stages (`step_journaled` -> `state_captured` -> `tool_called` -> `result_recorded` -> `compensation_registered` -> `step_committed`), `belay/executor/recovery.py`'s `step_indeterminate` | "Indeterminate" exists as three uncoordinated string literals: `recovery.py:84-91` (producer), `rewind/service.py`'s `StepStatus`/`OutcomeStatus` (consumer), `cli/causal.py` (display consumer) -- never unified into one type |
-| `TransactionReceipt` | `belay/ledger/signing.py::SignedEvidence` (hashed + Ed25519-signed session bundle), `belay/cli/causal.py::CausalNode` / `belay/cli/export_pr.py`'s proof-carrying-PR body (both already assemble prestate/plan/policy/test/compensation per step) | No policy-config-hash field per step, no poststate capture, and none of it covers hook-gated actions at all |
+| `ActionEnvelope` | None -- `HookEvent` (`rekha/supervisor/protocol.py`) and the MCP proxy's ad-hoc `(tool, args, session_id, cwd)` inputs are two independent shapes | Genuinely new; needs a shared parent both normalize into |
+| `ActionPlan` | `rekha/planner/model.py::Plan` (`plan_id`, `effects: list[EffectEstimate]`, `reversibility`, `policy_verdict`, `confidence`, `expires_at`) | Only the MCP proxy path produces one; hooks' `evaluate_file_edit`/`evaluate_mcp_call` do their own bespoke contract-presence check instead of calling `Planner.plan()`/`PolicyEngine.evaluate()` |
+| `CapabilityLease` | `ApprovalQueue.consume()` + `ApprovalItem.consumed_by_event_id`/`consumed_at`/`consumed_by_host`/`consumed_policy_hash` (R1.6) | Only the hooks path uses it -- `rekha/proxy/lifecycle.py::ApprovalStage.check()` still treats `state == "approved"` as an unconditional, unlimited-reuse pass. **This is the gap R1.7.1 (below) closes.** |
+| `OutcomeEvidence` | `SagaExecutor`'s six ledger-event stages (`step_journaled` -> `state_captured` -> `tool_called` -> `result_recorded` -> `compensation_registered` -> `step_committed`), `rekha/executor/recovery.py`'s `step_indeterminate` | "Indeterminate" exists as three uncoordinated string literals: `recovery.py:84-91` (producer), `rewind/service.py`'s `StepStatus`/`OutcomeStatus` (consumer), `cli/causal.py` (display consumer) -- never unified into one type |
+| `TransactionReceipt` | `rekha/ledger/signing.py::SignedEvidence` (hashed + Ed25519-signed session bundle), `rekha/cli/causal.py::CausalNode` / `rekha/cli/export_pr.py`'s proof-carrying-PR body (both already assemble prestate/plan/policy/test/compensation per step) | No policy-config-hash field per step, no poststate capture, and none of it covers hook-gated actions at all |
 
 Attempting the full protocol in one session would mean touching proxy,
 planner, policy, executor, rewind, ledger, hooks, and CLI simultaneously
@@ -62,7 +62,7 @@ sequenced, not attempted yet.
 
 ### Canonical types (target shape, not all built yet)
 
-**`ActionEnvelope`** -- **built, R1.7.3** (`belay/action_envelope.py`):
+**`ActionEnvelope`** -- **built, R1.7.3** (`rekha/action_envelope.py`):
 `{surface, host, tool, args, session_id, cwd, repo_prestate_digest,
 os_identity, event_id, monotonic_ns, wall_clock}`, plus
 `from_hook_event(HookEvent) -> ActionEnvelope` and `from_mcp_call(...) ->
@@ -72,7 +72,7 @@ path in this slice -- see R1.7.3's own section below for why the
 originally-sketched next step (`ActionPlan`/`PolicyEngine` reuse) was
 retired instead of built alongside it.
 
-**`ActionPlan`** -- reuse `belay/planner/model.py::Plan` as-is; no new
+**`ActionPlan`** -- reuse `rekha/planner/model.py::Plan` as-is; no new
 type. The originally-sketched follow-up (making the hooks path's
 `evaluate_file_edit`/`evaluate_mcp_call` call the real
 `Planner.plan()`/`PolicyEngine.evaluate()`) was investigated as part of
@@ -102,20 +102,20 @@ one `Outcome` enum would conflate three distinct concerns, not unify one.
 The real, narrower duplication was the bare string `"step_indeterminate"`
 (and its siblings `"step_committed"`/`"step_failed"`) typed out
 independently at every producer/consumer site with no compiler-enforced
-link between them. **Fixed as R1.7.2**: `belay/ledger/model.py` now
+link between them. **Fixed as R1.7.2**: `rekha/ledger/model.py` now
 exports `STEP_COMMITTED`/`STEP_FAILED`/`STEP_INDETERMINATE` as named
 constants (additive aliases into `EVENT_TYPES`, spec §9.1's list left
-untouched), referenced from every writer (`belay/executor/saga.py`,
-`belay/executor/recovery.py`) and every classifying reader
-(`belay/rewind/service.py`, `belay/cli/causal.py`,
-`belay/proxy/lifecycle.py`'s `step_failed` appends) instead of the bare
+untouched), referenced from every writer (`rekha/executor/saga.py`,
+`rekha/executor/recovery.py`) and every classifying reader
+(`rekha/rewind/service.py`, `rekha/cli/causal.py`,
+`rekha/proxy/lifecycle.py`'s `step_failed` appends) instead of the bare
 strings. A real `OutcomeEvidence` type spanning both engines (hooks has
 no equivalent to any of these three today) remains separately scoped,
 larger follow-up work -- not attempted here, and not the same task as
 "remove the string-literal duplication."
 
 **`TransactionReceipt`** -- **`policy_hash` half built, R1.7.4** (extends
-`belay/ledger/signing.py::SignedEvidence` rather than inventing a
+`rekha/ledger/signing.py::SignedEvidence` rather than inventing a
 parallel receipt format, as sketched). The poststate-capture half was
 investigated and found to need genuinely new `SagaExecutor`
 instrumentation, not a field addition -- see R1.7.4's own section below
@@ -124,12 +124,12 @@ for why, and what's still open.
 ### State machine
 
 The MCP proxy's actual per-call ledger event sequence, read off
-`belay/proxy/lifecycle.py::Lifecycle.govern_and_execute` and
-`belay/executor/saga.py::SagaExecutor.run_step`, already **is** a
+`rekha/proxy/lifecycle.py::Lifecycle.govern_and_execute` and
+`rekha/executor/saga.py::SagaExecutor.run_step`, already **is** a
 `PROPOSED -> ... -> COMMITTED` state machine -- it has just never been
 reified as a named enum, only as "which ledger events exist for a given
-`step_seq`" (exactly what `belay/rewind/service.py::build_plan` and
-`belay/cli/causal.py::build_causal_graph` both already reconstruct after
+`step_seq`" (exactly what `rekha/rewind/service.py::build_plan` and
+`rekha/cli/causal.py::build_causal_graph` both already reconstruct after
 the fact):
 
 ```
@@ -157,7 +157,7 @@ those three pre-existing, differently-shaped status types to build on.
 
 ### R1.7.1 (this slice): MCP proxy adopts the same Capability Lease
 
-`belay/proxy/lifecycle.py::ApprovalStage.check()`'s `existing.state ==
+`rekha/proxy/lifecycle.py::ApprovalStage.check()`'s `existing.state ==
 "approved"` branch unconditionally set `proceed=True` -- the exact same
 gap R1.6 closed for hooks: an approved `plan_id` allowed an unbounded
 number of separate future action instances, not just the one situation a
@@ -183,7 +183,7 @@ human actually approved. Fixed by calling the same
   the proxy's approval-check and execution happen inside the same
   `govern_and_execute` invocation, so there is no legitimate "redeliver
   the identical dispatch" case to accommodate here.
-- On `ApprovalAlreadyConsumed`, raises `BelayError("idempotency_conflict",
+- On `ApprovalAlreadyConsumed`, raises `RekhaError("idempotency_conflict",
   ...)` -- the closest existing spec §11 code (already means "reusing a
   resource as if it were still fresh" for the saga executor's own
   idempotency keys) rather than an 18th registered code.
@@ -199,15 +199,15 @@ was the bare strings `"step_committed"`/`"step_failed"`/
 consumer site, with no compiler-enforced link between them -- a typo at
 any one site would silently break the connection. Fixed:
 
-- `belay/ledger/model.py` gains `STEP_COMMITTED`/`STEP_FAILED`/
+- `rekha/ledger/model.py` gains `STEP_COMMITTED`/`STEP_FAILED`/
   `STEP_INDETERMINATE` constants -- additive aliases into `EVENT_TYPES`
   (spec §9.1's normative list, left untouched as a tuple), not a
   replacement for it.
-- Every writer (`belay/executor/saga.py`'s committed/failed appends,
-  `belay/executor/recovery.py`'s indeterminate append,
-  `belay/proxy/lifecycle.py`'s three `step_failed` appends) and every
-  classifying reader (`belay/rewind/service.py::build_plan`'s
-  `committed`/`indeterminate` checks, `belay/cli/causal.py`'s status
+- Every writer (`rekha/executor/saga.py`'s committed/failed appends,
+  `rekha/executor/recovery.py`'s indeterminate append,
+  `rekha/proxy/lifecycle.py`'s three `step_failed` appends) and every
+  classifying reader (`rekha/rewind/service.py::build_plan`'s
+  `committed`/`indeterminate` checks, `rekha/cli/causal.py`'s status
   fold) now reference the shared constants instead of the bare strings.
 - Pure refactor, zero behavior change -- confirmed by the full test suite
   passing unchanged (no existing test needed updating), plus two new
@@ -217,7 +217,7 @@ any one site would silently break the connection. Fixed:
 ### R1.7.3 (this slice, revised scope): `ActionEnvelope` only, `ActionPlan` sketch retired
 
 A focused investigation into the originally-sketched follow-up (make
-`belay/hooks/gate.py`'s `evaluate_file_edit`/`evaluate_mcp_call` build a
+`rekha/hooks/gate.py`'s `evaluate_file_edit`/`evaluate_mcp_call` build a
 real `Plan` via `Planner.plan()` and evaluate it through
 `PolicyEngine.evaluate()`, replacing `gate.py`'s bespoke contract-presence
 check) found four concrete reasons this specific idea does not hold up,
@@ -227,7 +227,7 @@ before any code was written:
    applied the default rule" and returns a *permissive* `Plan`
    (`reversibility="reversible"`, `effects=[]`) -- the real
    `contract_missing` deny logic lives entirely in
-   `belay/proxy/lifecycle.py::resolve()`, before a `PlanningSession` is
+   `rekha/proxy/lifecycle.py::resolve()`, before a `PlanningSession` is
    ever built. Swapping in a bare `Planner.plan()` call would make hooks
    **more permissive** than today for "ContractSet configured, tool
    unresolved," unless `gate.py` keeps re-implementing `resolve()`'s
@@ -235,7 +235,7 @@ before any code was written:
    check doesn't disappear, it just duplicates a different function.
 2. `Planner.plan()` is `async def`; the entire hooks call path
    (`Supervisor._decide_pre`/`_decide`/`handle_hook_event`/
-   `_handle_request`, `belay/supervisor/server.py`) is deliberately
+   `_handle_request`, `rekha/supervisor/server.py`) is deliberately
    synchronous with no event loop underneath it anywhere. Bridging via
    `asyncio.run(...)` is mechanically possible but a genuinely new
    pattern for this call path.
@@ -243,7 +243,7 @@ before any code was written:
    **permanently inert** on the hooks surface (not just slow to warm
    up): quota keys on a `session_started.initiated_by` event hooks never
    writes; anomaly keys on `plan_created` events
-   (`belay/policy/baseline.py::BaselineStore.stats()`) hooks also never
+   (`rekha/policy/baseline.py::BaselineStore.stats()`) hooks also never
    writes. Making them real is a separate piece of work -- mirroring
    `plan_created`/`session_started`-shaped events into the hooks ledger
    -- which is actually **R1.10's job** ("shared quota/anomaly store"),
@@ -252,7 +252,7 @@ before any code was written:
    architecture decision: **ADR 0023** already examined this exact
    identity/ledger-shape mismatch for quota, chose a parallel,
    hooks-native tracker (`HookQuotaTracker`, keyed on OS user) over
-   reusing `PolicyEngine`/`belay.policy.quota.QuotaTracker` directly, and
+   reusing `PolicyEngine`/`rekha.policy.quota.QuotaTracker` directly, and
    explicitly named anomaly baselines as facing "the exact same two
    blockers" and a candidate for the **same parallel-tracker pattern** in
    a future slice -- the opposite direction from what this sketch
@@ -260,7 +260,7 @@ before any code was written:
 
 **Decision**: only `ActionEnvelope` (see the "Canonical types" section
 above) was built this slice -- a pure additive type + two conversion
-functions (`belay/action_envelope.py::from_hook_event`/`from_mcp_call`),
+functions (`rekha/action_envelope.py::from_hook_event`/`from_mcp_call`),
 called from no production decision path, zero behavior change. Whether
 hooks should ever reuse `PolicyEngine` directly, or instead get its own
 parallel anomaly tracker (matching ADR 0023's already-chosen pattern for
@@ -275,14 +275,14 @@ question against -- not assumed now, in either direction.
 verify time -- not passed in from outside and trusted. `policy_hash`
 follows the identical pattern rather than being bolted on differently:
 
-- `belay/proxy/lifecycle.py::Lifecycle` now computes `self._policy_hash`
+- `rekha/proxy/lifecycle.py::Lifecycle` now computes `self._policy_hash`
   once in `__post_init__` (previously computed inline, only for
   `ApprovalStage`'s R1.7.1 use) and folds it into `session_started`'s
   payload in `start_session()` -- inside the payload dict, not a
   dedicated `Event` field, matching how `tool_count`/`intent_contract_hash`
   already ride there (events are `extra="allow"`, spec §14, so this
   needs no schema change to `Event`/`EventRow` at all).
-- `belay/ledger/signing.py` gains `_policy_hash_from_events()` (mirrors
+- `rekha/ledger/signing.py` gains `_policy_hash_from_events()` (mirrors
   `_identity_from_events`), a `policy_hash` field on `SignedEvidence`,
   and the same signed-summary + verify-time cross-check treatment
   `initiated_by`/`on_behalf_of` already get -- editing a bundle's stated
@@ -314,20 +314,20 @@ small.
   the MCP proxy's approval replay gap is closed using the identical,
   already-tested-under-concurrency mechanism hooks uses.
 - `consumed_by_host="mcp"` and a real `policy_hash` are now recorded for
-  every MCP-side consumption, giving `belay approvals`/future receipt
+  every MCP-side consumption, giving `rekha approvals`/future receipt
   tooling a uniform audit trail across both engines.
-- `belay/ledger/model.py::STEP_COMMITTED`/`STEP_FAILED`/`STEP_INDETERMINATE`
+- `rekha/ledger/model.py::STEP_COMMITTED`/`STEP_FAILED`/`STEP_INDETERMINATE`
   are now the one place every step-outcome event type is spelled --
   future code should reference these rather than reintroducing bare
   string literals.
-- `belay/action_envelope.py::ActionEnvelope` now exists as a real,
+- `rekha/action_envelope.py::ActionEnvelope` now exists as a real,
   tested type both engines' per-call inputs provably normalize into --
   but it is not wired into any production decision path, and
   `ActionPlan` production (making hooks build a real `Plan`/`PolicyResult`)
   was investigated and explicitly retired as sketched, not built in a
   different shape -- see R1.7.3's own section above for the four reasons
   and the ADR-0023-aligned re-sequencing.
-- `belay/ledger/signing.py::SignedEvidence.policy_hash` now lets a
+- `rekha/ledger/signing.py::SignedEvidence.policy_hash` now lets a
   verifier confirm, offline and cryptographically, which policy config
   actually governed a session -- the same tamper-evidence guarantee
   `initiated_by`/`on_behalf_of` already had, extended to policy.
@@ -352,7 +352,7 @@ small.
 `tests/proxy/test_lifecycle.py`: new test proving a **third**
 `govern_and_execute` call with the identical tool+args (after the
 existing pause -> approve -> execute two-call flow) now raises
-`BelayError(code="idempotency_conflict")` instead of silently
+`RekhaError(code="idempotency_conflict")` instead of silently
 re-executing; the existing two-call approve-then-execute test needed no
 changes (verified by reading it first -- the fix is additive to a third
 call, not a behavior change to the first two); one test confirming

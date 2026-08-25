@@ -5,9 +5,9 @@ re-checked at execution time per the TOCTOU discipline of spec §12)."""
 from __future__ import annotations
 
 import pytest
-from belay.contracts.model import Capture, Contract, Effect, Undo
-from belay.executor.saga import SagaExecutor
-from belay.ledger.store import LedgerStore
+from rekha.contracts.model import Capture, Contract, Effect, Undo
+from rekha.executor.saga import SagaExecutor
+from rekha.ledger.store import LedgerStore
 
 pytestmark = pytest.mark.anyio
 
@@ -19,7 +19,7 @@ def anyio_backend() -> str:
 
 def _conditional_contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="fs.delete_file",
         reversibility="conditional",
         conditions=["$state.before.existed == true"],

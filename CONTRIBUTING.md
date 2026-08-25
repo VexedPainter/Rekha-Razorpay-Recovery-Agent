@@ -1,6 +1,6 @@
-# Contributing to Belay
+# Contributing to Rekha
 
-Belay is built spec-first: `docs/spec.md` (the Belay Specification 0.1) is
+Rekha is built spec-first: `docs/spec.md` (the Rekha Specification 0.1) is
 the source of truth, and `docs/plan.md` tracks the implementation roadmap.
 
 ## Ground rules
@@ -11,7 +11,7 @@ the source of truth, and `docs/plan.md` tracks the implementation roadmap.
   describe behavior (`test_refuses_destructive_tool_without_contract`).
 - **No `eval`/`exec`.** The contract expression language (spec §4.3) is
   parsed with a closed grammar, never evaluated as code.
-- **No LLM calls inside `belay/`.** The safety path is fully deterministic.
+- **No LLM calls inside `rekha/`.** The safety path is fully deterministic.
 - **English for public artifacts.** Code, comments, commit messages, README,
   and CHANGELOG are English. ADRs and working notes may be Spanish.
 
@@ -19,12 +19,12 @@ the source of truth, and `docs/plan.md` tracks the implementation roadmap.
 
 1. Fork and branch from `main`.
 2. `pip install -e ".[dev]"`.
-3. `ruff check . && mypy belay && pytest` must pass before you open a PR.
+3. `ruff check . && mypy rekha && pytest` must pass before you open a PR.
    Bare `pytest` is the branch-covered fast gate (unit/property/in-memory
    integration, no real subprocess; enforces the branch-coverage floor in
    `pyproject.toml`) — use it for quick local iteration. Run
    `pytest -m "" --no-cov` (the full suite, including `@pytest.mark.slow`
-   tests that spawn real `belay run` subprocesses over stdio, and
+   tests that spawn real `rekha run` subprocesses over stdio, and
    `live_conformance` tests where opted in) before opening a PR. See the CI
    badge in `README.md` for current run times on real Linux/macOS/Windows
    runners — this repo doesn't freeze a duration here that CI would
@@ -52,8 +52,8 @@ silently diverged from in code (see `AGENTS.md` rule 1).
 
 ## Security
 
-Belay's safety path (contracts, planner, policy, approvals, executor,
-rewind, ledger — everything under `belay/`, excluding `belay/cli`) is
+Rekha's safety path (contracts, planner, policy, approvals, executor,
+rewind, ledger — everything under `rekha/`, excluding `rekha/cli`) is
 deterministic: no `eval`/`exec`, no LLM calls, no network calls beyond MCP
 to configured tool servers. If you find a way to bypass a policy verdict,
 forge a ledger entry, or get the expression language (spec §4.3) to

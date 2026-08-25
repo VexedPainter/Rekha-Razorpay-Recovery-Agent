@@ -180,7 +180,7 @@
 
  ---- COMMAND 2: The attack suite (this is your credibility moment) ----
 
-   .\.venv\Scripts\belay.exe bench run
+   .\.venv\Scripts\rekha.exe bench run
 
  Takes about 10 seconds. Runs 7 scenarios.
 
@@ -220,10 +220,10 @@
 
  Four commands in a row. This is the differentiator.
 
-   .\.venv\Scripts\python.exe -m belay.cli.main recover --provider replay
+   .\.venv\Scripts\python.exe -m rekha.cli.main recover --provider replay
    .\.venv\Scripts\python.exe scripts\simulate_payments.py --rate 0.6 --inject unauthorized
-   .\.venv\Scripts\python.exe -m belay.cli.main webhooks replay webhooks.json
-   .\.venv\Scripts\belay.exe settle-verify --recon recon.json
+   .\.venv\Scripts\python.exe -m rekha.cli.main webhooks replay webhooks.json
+   .\.venv\Scripts\rekha.exe settle-verify --recon recon.json
 
  The last one prints:
 
@@ -316,7 +316,7 @@
 
  ---- 2:00 to 3:30  THE ATTACKS ----
 
- Run:  .\.venv\Scripts\belay.exe bench run
+ Run:  .\.venv\Scripts\rekha.exe bench run
 
  Say:
 
@@ -595,14 +595,14 @@
  [ ] Record. Retake as often as you like - it's a video, not a live demo.
  [ ] Push to a public GitHub repo (exact commands in docs/HANDOFF.md).
      Create the repo EMPTY - no README, no licence - or the push will conflict.
- [ ] Add gelpierreape@gmail.com as a verified email on the new GitHub account so
+ [ ] Add rahuljaiprakashden@gmail.com as a verified email on the new GitHub account so
      all 114 commits attribute to you. Cosmetic, but "114 commits over 5 weeks"
      is a real signal.
  [ ] Apply at forms.gle/d9r2gvxp8cmoZhon9 - Track 03, AI Revenue Recovery.
  [ ] DEADLINE: 5 September 2026.
 
  OPTIONAL, only if you have spare time:
- [ ] One live Razorpay run:  .\.venv\Scripts\belay.exe recover --live
+ [ ] One live Razorpay run:  .\.venv\Scripts\rekha.exe recover --live
      Needs your test keys (already in .env) and Node. Would let you say "and
      here's a real payment link in Razorpay test mode."
 
@@ -619,8 +619,8 @@
  examples/demo_fanout.py    the fan-out attack
  bench/attacks.py           the 7 adversarial scenarios
  recovery/                  the AI layer (the only place a model is called)
- belay/                     the control plane (no AI anywhere in here)
- belay/settlement/verify.py the three-way reconciliation
+ rekha/                     the control plane (no AI anywhere in here)
+ rekha/settlement/verify.py the three-way reconciliation
  tests/test_layer_boundaries.py   the test that enforces the central claim
 
 ================================================================================

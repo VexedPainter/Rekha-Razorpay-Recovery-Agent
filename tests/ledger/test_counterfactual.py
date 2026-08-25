@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from belay.ledger.counterfactual import InvalidForkPoint, run_counterfactual
-from belay.ledger.replay import replay
-from belay.ledger.store import LedgerStore
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from rekha.ledger.counterfactual import InvalidForkPoint, run_counterfactual
+from rekha.ledger.replay import replay
+from rekha.ledger.store import LedgerStore
 
 
 def _seed_session(
@@ -163,7 +163,7 @@ def test_property_any_noop_override_is_always_unchanged_and_matches_replay(
 
 
 def test_immutability_row_count_unchanged_and_no_upstream_calls(tmp_path: Any) -> None:
-    db_path = tmp_path / "belay.db"
+    db_path = tmp_path / "rekha.db"
     store = LedgerStore(f"sqlite:///{db_path}")
     _seed_session(store, verdict="pause")
 

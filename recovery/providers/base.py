@@ -41,7 +41,7 @@ _DOTENV_CACHE: dict[str, str] | None = None
 class ProviderError(RuntimeError):
     """A provider could not produce a usable answer.
 
-    Deliberately not a `BelayError`: spec §11's registry governs the governed
+    Deliberately not a `RekhaError`: spec §11's registry governs the governed
     protocol surface, and an LLM being unreachable is not a financial event. The
     caller decides what a failed diagnosis means -- and the safe reading is
     always "propose nothing", never "proceed unadvised".

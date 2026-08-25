@@ -4,10 +4,10 @@ thresholds. Uses a real `LedgerStore` (per-session history), never global in-mem
 
 from __future__ import annotations
 
-from belay.ledger.store import LedgerStore
-from belay.planner.model import EffectEstimate, Plan
-from belay.policy.engine import PolicyEngine
-from belay.policy.model import AnomalyDefaults, Cap, CapMatch, Defaults, PolicyDoc, default_policy
+from rekha.ledger.store import LedgerStore
+from rekha.planner.model import EffectEstimate, Plan
+from rekha.policy.engine import PolicyEngine
+from rekha.policy.model import AnomalyDefaults, Cap, CapMatch, Defaults, PolicyDoc, default_policy
 
 
 def _plan(

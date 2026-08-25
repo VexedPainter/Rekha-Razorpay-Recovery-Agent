@@ -20,7 +20,7 @@ only arrangement under which "was the forecast any good?" has an answer.
 Two arms over the SAME payments with the SAME random seed:
 
   single-shot  the opening action only, follow-up plans discarded
-  sequenced    the full plan, advanced by `belay.razorpay.sequence`
+  sequenced    the full plan, advanced by `rekha.razorpay.sequence`
 
 Paired rather than independent samples: the difference between arms is then
 attributable to sequencing rather than to one arm drawing an easier cohort. Both
@@ -50,13 +50,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "examples" / "razorpay-sandbox"))
 
-from belay.finance.money import Money  # noqa: E402
-from belay.razorpay.sequence import ContactPolicy  # noqa: E402
 from cohort import generate_cohort  # noqa: E402
 from recovery.agent import derive_now_epoch  # noqa: E402
 from recovery.diagnose import diagnose_batch  # noqa: E402
 from recovery.proposal import PaymentSnapshot, RecoveryProposal, Strategy  # noqa: E402
 from recovery.providers import resolve_provider  # noqa: E402
+from rekha.finance.money import Money  # noqa: E402
+from rekha.razorpay.sequence import ContactPolicy  # noqa: E402
 
 INR = "INR"
 

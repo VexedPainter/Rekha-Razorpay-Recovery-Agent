@@ -1,10 +1,10 @@
 """Toy MCP filesystem server (examples/fs-server, plan.md §2).
 
 A minimal, real MCP server exposing list/read/write/delete over a sandboxed
-directory. Used to exercise the Belay L1 proxy end-to-end (E3): this is the
-upstream tool server that `belay wrap`/`belay run` sit in front of.
+directory. Used to exercise the Rekha L1 proxy end-to-end (E3): this is the
+upstream tool server that `rekha wrap`/`rekha run` sit in front of.
 
-The sandbox root is `BELAY_FS_ROOT` if set, else a temp directory created on
+The sandbox root is `REKHA_FS_ROOT` if set, else a temp directory created on
 startup. All paths are resolved relative to the root and a call outside the
 root is rejected — this is a toy server, not a security boundary for
 untrusted input, but it keeps the demo/tests from touching the real
@@ -20,10 +20,10 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-_ROOT = Path(os.environ.get("BELAY_FS_ROOT") or tempfile.mkdtemp(prefix="belay-fs-")).resolve()
+_ROOT = Path(os.environ.get("REKHA_FS_ROOT") or tempfile.mkdtemp(prefix="rekha-fs-")).resolve()
 _ROOT.mkdir(parents=True, exist_ok=True)
 
-mcp = FastMCP("belay-fs-server")
+mcp = FastMCP("rekha-fs-server")
 
 
 def _resolve(path: str) -> Path:

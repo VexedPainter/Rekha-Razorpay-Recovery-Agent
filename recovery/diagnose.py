@@ -33,9 +33,9 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from belay.canonical import canonical_bytes, sha256_hex
-from belay.finance.money import Money
 from pydantic import ValidationError
+from rekha.canonical import canonical_bytes, sha256_hex
+from rekha.finance.money import Money
 
 from recovery.proposal import (
     CauseClass,
@@ -224,7 +224,7 @@ def _parse_follow_up(raw: object) -> tuple[tuple[RecoveryStep, ...], str | None]
     and returns a reason so the truncation is recorded rather than inferred.
 
     Nothing dangerous can survive a short plan: the opening action is unaffected,
-    and every later step is re-checked by `belay.razorpay.sequence` anyway.
+    and every later step is re-checked by `rekha.razorpay.sequence` anyway.
 
     Note what is NOT validated here: two link-creating steps in a row. The prompt
     asks the model to avoid it, but the guarantee lives in the executor, which

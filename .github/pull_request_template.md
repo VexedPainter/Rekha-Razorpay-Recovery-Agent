@@ -19,13 +19,13 @@ docs/plan-v2.md) or ADR if there is one. -->
 
 ```
 ruff check .
-mypy belay
+mypy rekha
 pytest                    # branch-covered fast gate
 pytest -m "" --no-cov     # full suite (slow/subprocess tests too) before opening a PR
 ```
 
 - [ ] All three pass locally.
-- [ ] `belay-conformance run --target belay --level 3` still passes (if
+- [ ] `rekha-conformance run --target rekha --level 3` still passes (if
       this touches proxy/hooks/contract/policy/approval/executor/ledger
       code).
 

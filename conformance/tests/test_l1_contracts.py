@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from belay.errors import BelayError
+from rekha.errors import RekhaError
 
 from conformance.target import ConformanceTarget
 from conformance.tests.fakes import make_fs_executor
@@ -34,7 +34,7 @@ async def test_declared_reversible_call_succeeds_and_is_ledgered(
 async def test_undeclared_non_readonly_tool_is_refused(target: ConformanceTarget) -> None:
     """spec §4.6: no contract, no `readOnlyHint`, no `unsafe_passthrough` -> `contract_missing`."""
     session_id = target.new_session([FS_CONTRACT], make_fs_executor())
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         await target.call(session_id, "fs.rename_file", {"path": "a.txt"})
     assert exc_info.value.code == "contract_missing"
 
@@ -52,7 +52,7 @@ async def test_undeclared_readonly_hinted_tool_is_allowed_as_implicit_read(
 
 async def test_ledger_chain_is_internally_verifiable(target: ConformanceTarget) -> None:
     """spec §9.2: the hash chain recomputes cleanly for an untouched session."""
-    from belay.ledger.verify import verify_chain
+    from rekha.ledger.verify import verify_chain
 
     session_id = target.new_session([FS_CONTRACT], make_fs_executor())
     await target.call(session_id, "fs.write_file", {"path": "a.txt", "content": "hi"})

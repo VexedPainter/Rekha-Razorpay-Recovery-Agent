@@ -1,9 +1,9 @@
-# Belay — Plan v2 (post-v0.1.0): E10-E16
+# Rekha — Plan v2 (post-v0.1.0): E10-E16
 
 Continuation of `docs/plan.md`'s methodology (SDD+TDD, one PR/commit per
-entrega, English artifacts, no LLM anywhere in `belay/`, no `eval`/`exec`).
+entrega, English artifacts, no LLM anywhere in `rekha/`, no `eval`/`exec`).
 Entregas are additive — they must not weaken any prior test or break L3
-conformance (`belay-conformance run --target belay --level 3` must still
+conformance (`rekha-conformance run --target rekha --level 3` must still
 pass after each).
 
 This document's own planning detail stops at E16. E17-E20 shipped after it
@@ -27,9 +27,9 @@ See `docs/adr/0010`-`0015` for each.
 
 ## E16 — Blast-radius self-explanation returned to the agent (not just the human)
 
-**Problem:** every governance signal Belay has today (caps, anomaly
+**Problem:** every governance signal Rekha has today (caps, anomaly
 baseline from E10, quota from E15, policy verdicts) is explained to a
-*human* — in `belay approvals list` output, in `belay plan` output, in
+*human* — in `rekha approvals list` output, in `rekha plan` output, in
 `PolicyResult.reasons` that a CLI operator reads. The calling *agent*
 itself only ever gets a bare `pending_approval`/`policy_denied` signal
 with no legible reason attached to the MCP response it receives. That
@@ -56,7 +56,7 @@ posture says anything about not over-disclosing policy internals to the
 governed agent, and follow it).
 
 **Design:**
-- `belay/policy/explain.py`: `explain(policy_result: PolicyResult, plan: Plan) -> Explanation`
+- `rekha/policy/explain.py`: `explain(policy_result: PolicyResult, plan: Plan) -> Explanation`
   — a pure function building a structured, human-AND-agent-legible
   explanation object from the already-computed `PolicyResult.reasons` (no
   new computation, no re-deriving numbers — this module only formats what
@@ -73,15 +73,15 @@ governed agent, and follow it).
   do not guess, when no deterministic suggestion applies — never
   fabricate a suggestion that doesn't follow mechanically from the
   contract/policy shape).
-- `belay/proxy/lifecycle.py`: attach the `Explanation` to EVERY governed
+- `rekha/proxy/lifecycle.py`: attach the `Explanation` to EVERY governed
   response the agent receives, not just `pending_approval` — `allow`
   responses get a minimal/empty-dimensions explanation too (for symmetry
   and so an agent can build a habit of reading it), `pending_approval`
   responses get the full explanation inline (so the agent sees WHY it's
-  paused without needing a human to run `belay approvals list` first),
-  `policy_denied`/other raised `BelayError`s carry the explanation in
+  paused without needing a human to run `rekha approvals list` first),
+  `policy_denied`/other raised `RekhaError`s carry the explanation in
   their error detail payload.
-- `belay/proxy/server.py`: ensure the `Explanation` rides in
+- `rekha/proxy/server.py`: ensure the `Explanation` rides in
   `CallToolResult.structuredContent` (extending the existing
   `pending_approval` dict shape, not replacing it) so any standard MCP
   client/agent framework can read it as structured data, not just a
@@ -108,10 +108,10 @@ governed agent, and follow it).
   (e.g. contract has a `conditions`-bearing narrowing argument) and is
   ABSENT (not a guessed placeholder) otherwise — test both branches
   explicitly.
-- End-to-end: a real MCP `call_tool` against a real `belay run` session
+- End-to-end: a real MCP `call_tool` against a real `rekha run` session
   that gets paused by anomaly/quota/cap returns a `CallToolResult` whose
   `structuredContent` contains the full `Explanation`, readable by a
-  standard MCP client without any Belay-specific parsing beyond reading
+  standard MCP client without any Rekha-specific parsing beyond reading
   JSON fields.
 - Disclosure-policy test: whatever policy is chosen (exact numbers vs.
   relative language) is applied consistently — write a test enumerating
@@ -151,8 +151,8 @@ entries — do not remove or restructure existing entries.
 
 ## Sequencing
 
-E16 touches `belay/policy/` (new `explain.py`, reusing but not modifying
-`engine.py`'s existing dimension logic), `belay/proxy/lifecycle.py`, and
-`belay/proxy/server.py` — safe to build on its own now that E10-E15 are
+E16 touches `rekha/policy/` (new `explain.py`, reusing but not modifying
+`engine.py`'s existing dimension logic), `rekha/proxy/lifecycle.py`, and
+`rekha/proxy/server.py` — safe to build on its own now that E10-E15 are
 all landed and pushed. Run the full test suite +
-`belay-conformance ... --level 3` after landing.
+`rekha-conformance ... --level 3` after landing.

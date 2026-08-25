@@ -8,7 +8,7 @@ Estado: aceptado
 E8 implementa `docs/plan.md` sección "E8 — Suite de conformidad pública +
 packs de ejemplo" y `docs/spec.md` §13 (Conformance). Extrae las
 comprobaciones normativas de L1/L2/L3 a un paquete instalable,
-`conformance/`, ejecutable contra cualquier implementación de Belay vía un
+`conformance/`, ejecutable contra cualquier implementación de Rekha vía un
 adaptador fino `ConformanceTarget`, y añade `examples/contracts/email.yaml`
 como pack de ejemplo con un efecto irreversible.
 
@@ -49,33 +49,33 @@ paquete público.
 - **`steps` en `run_saga` son "implementation-native step specs"**, no un
   tipo definido por `ConformanceTarget`. La suite de referencia
   (`conformance/tests/test_l3_sagas_rewind.py`) importa
-  `belay.executor.saga.SagaStep` directamente porque construye contra el
-  adaptador `belay`. Un adaptador de un tercero necesitaría su propio tipo
+  `rekha.executor.saga.SagaStep` directamente porque construye contra el
+  adaptador `rekha`. Un adaptador de un tercero necesitaría su propio tipo
   de paso y, estrictamente, sus propios tests L3 (o una capa de
   construcción de pasos agnóstica) — se documenta aquí como límite conocido
   en vez de forzar un DSL de pasos genérico dentro del límite de "~6
   métodos" que pide plan.md; añadir esa capa es la extensión natural si un
-  segundo target real (no `belay`) llega a implementar L3.
-- **El adaptador de referencia (`conformance/targets/belay_target.py`)
-  reutiliza el cableado real de producción** (`belay.proxy.lifecycle.Lifecycle`,
-  `belay.executor.saga.SagaExecutor`, `belay.rewind.service.RewindService`)
+  segundo target real (no `rekha`) llega a implementar L3.
+- **El adaptador de referencia (`conformance/targets/rekha_target.py`)
+  reutiliza el cableado real de producción** (`rekha.proxy.lifecycle.Lifecycle`,
+  `rekha.executor.saga.SagaExecutor`, `rekha.rewind.service.RewindService`)
   en vez de reimplementar la lógica de gobernanza. La suite debe ejercitar
   el código real, no un modelo paralelo de él — un adaptador que reimplemente
   su propia versión de "aprobación" o "rewind" estaría probando el
-  adaptador, no Belay.
+  adaptador, no Rekha.
 - **Los escenarios usan executores de herramientas en memoria
   (`conformance/tests/fakes.py`), no los servidores MCP reales de
   `examples/`.** `examples/fs-server` y `examples/crm-mock` ya se ejercitan
   contra stdio real en E3/E6 (`tests/proxy/test_stdio_integration.py`,
   `tests/executor/test_crm_mock_acceptance.py`); la suite de conformidad
-  prueba la lógica de gobernanza de Belay, no el transporte MCP, así que un
+  prueba la lógica de gobernanza de Rekha, no el transporte MCP, así que un
   executor en memoria basta y mantiene el bucle rápido (`@slow` sigue
   reservado para lo que realmente arranca un subproceso).
-- **`belay-conformance run` ejecuta pytest programáticamente** sobre
+- **`rekha-conformance run` ejecuta pytest programáticamente** sobre
   `conformance/tests/` filtrando por marcador (`-m "l1 or l2 or l3"` según
   el nivel, acumulativo per spec §13: "Three levels, cumulative"), en vez de
   escribir un motor de test propio — pytest ya es una dependencia y ya sabe
-  descubrir/ejecutar/reportar. `--target` acepta el alias `belay` o una ruta
+  descubrir/ejecutar/reportar. `--target` acepta el alias `rekha` o una ruta
   `modulo:Clase` para que "cualquier implementación" sea literal sin un
   sistema de plugins/entry-points.
 - **`email.yaml` es `reversibility: irreversible` sin bloque `undo`**
@@ -95,7 +95,7 @@ paquete público.
 | `l2` | L2 — Plans & policy | §5, §6, §7 (además de L1) | `conformance/tests/test_l2_plans_policy.py` |
 | `l3` | L3 — Sagas & rewind | §8, §10, verificación completa §9.2 (además de L1+L2) | `conformance/tests/test_l3_sagas_rewind.py` |
 
-`belay-conformance run --level N` selecciona `-m "l1 or ... or lN"` — cada
+`rekha-conformance run --level N` selecciona `-m "l1 or ... or lN"` — cada
 nivel es literalmente acumulativo, no solo en teoría (spec §13: "Three
 levels, cumulative").
 
@@ -103,13 +103,13 @@ levels, cumulative").
 
 ```
 $ pip install -e ".[dev]"
-$ belay-conformance run --target belay --level 3
+$ rekha-conformance run --target rekha --level 3
 ...
 11 passed in 2.63s
-belay-conformance: target=belay -> L3 PASSED
+rekha-conformance: target=rekha -> L3 PASSED
 ```
 
 Ejecutado también como subproceso real (no en proceso) en
-`tests/cli/test_conformance.py::test_belay_conformance_console_script_runs_as_a_real_subprocess`
-(`@slow`), invocando el binario `belay-conformance` instalado por
+`tests/cli/test_conformance.py::test_rekha_conformance_console_script_runs_as_a_real_subprocess`
+(`@slow`), invocando el binario `rekha-conformance` instalado por
 `pyproject.toml`'s `[project.scripts]`, no un import directo.

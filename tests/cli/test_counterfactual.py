@@ -1,4 +1,4 @@
-"""`belay counterfactual` against a real SQLite fixture from a prior `belay run`
+"""`rekha counterfactual` against a real SQLite fixture from a prior `rekha run`
 session (plan-v2 E12, mirrors the E3/E7 stdio-subprocess fixture pattern)."""
 
 from __future__ import annotations
@@ -9,9 +9,9 @@ from pathlib import Path
 
 import anyio
 import pytest
-from belay.cli.main import app
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from rekha.cli.main import app
 from typer.testing import CliRunner
 
 pytestmark = pytest.mark.anyio
@@ -26,8 +26,8 @@ def anyio_backend() -> str:
 
 
 def _wrap(tmp_path: Path) -> tuple[Path, Path]:
-    db_path = tmp_path / "belay.db"
-    config_path = tmp_path / "belay.wrap.json"
+    db_path = tmp_path / "rekha.db"
+    config_path = tmp_path / "rekha.wrap.json"
     result = runner.invoke(
         app,
         [
@@ -48,14 +48,14 @@ def _wrap(tmp_path: Path) -> tuple[Path, Path]:
 def _pause_bulk_delete_policy(tmp_path: Path) -> Path:
     policy_path = tmp_path / "policy.yaml"
     policy_path.write_text(
-        "belay_policy: '0.1'\ntools:\n  - match: 'crm.bulk_delete'\n    verdict: pause\n",
+        "rekha_policy: '0.1'\ntools:\n  - match: 'crm.bulk_delete'\n    verdict: pause\n",
         encoding="utf-8",
     )
     return policy_path
 
 
 @pytest.mark.slow
-async def test_counterfactual_against_a_real_belay_run_session_leaves_ledger_untouched(
+async def test_counterfactual_against_a_real_rekha_run_session_leaves_ledger_untouched(
     tmp_path: Path,
 ) -> None:
     config_path, db_path = _wrap(tmp_path)
@@ -65,7 +65,7 @@ async def test_counterfactual_against_a_real_belay_run_session_leaves_ledger_unt
         command=sys.executable,
         args=[
             "-m",
-            "belay.cli.main",
+            "rekha.cli.main",
             "run",
             "--config",
             str(config_path),
@@ -94,7 +94,7 @@ async def test_counterfactual_against_a_real_belay_run_session_leaves_ledger_unt
         second = await session.call_tool("crm.bulk_delete", {"before_year": 2024})
         assert not second.isError
 
-        from belay.ledger.store import LedgerStore
+        from rekha.ledger.store import LedgerStore
 
         all_events = LedgerStore(f"sqlite:///{db_path.resolve().as_posix()}").read_all()
         session_id = all_events[0].session_id

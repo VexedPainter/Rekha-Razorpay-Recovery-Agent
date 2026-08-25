@@ -8,14 +8,14 @@ Estado: aceptado
 E6 implementa `docs/spec.md` §8 (Execution semantics / staged commits),
 según `docs/plan.md` sección "E6 — Ejecutor de sagas (spec §8) — la entrega
 más delicada". Reemplaza el passthrough plano tool_called/result_recorded
-que E3-E5 usaban en `belay/proxy/lifecycle.py` por el ciclo de paso real de
+que E3-E5 usaban en `rekha/proxy/lifecycle.py` por el ciclo de paso real de
 seis etapas de §8.1, con materialización de compensación, idempotencia y
 recuperación tras caída.
 
 ## Decisiones
 
 - **Las seis etapas normativas de §8.1, en este orden exacto y sin
-  excepciones.** `belay/executor/saga.py::SagaExecutor.run_step` ejecuta
+  excepciones.** `rekha/executor/saga.py::SagaExecutor.run_step` ejecuta
   `journaled -> capturing -> calling -> result_recorded ->
   compensation_registered -> committed`, apendando su evento de ledger
   correspondiente en cada una (`STAGES` fija el orden como constante
@@ -51,7 +51,7 @@ recuperación tras caída.
   (el proxy real siempre inyecta uno) proveerlo para que la garantía
   aplique. Test: `tests/executor/test_capture.py`.
 - **Idempotencia como tabla propia (`idempotency_keys`), no como
-  replay del ledger.** `belay/executor/idempotency.py::IdempotencyStore`
+  replay del ledger.** `rekha/executor/idempotency.py::IdempotencyStore`
   guarda una fila por `idempotency_key` con `status: "calling" | "done"`.
   `run_step` la consulta antes de llamar al upstream: si ya existe y está
   `"done"`, devuelve el resultado grabado sin tocar el upstream; si no
@@ -64,7 +64,7 @@ recuperación tras caída.
   `tests/executor/test_idempotency.py` (upstream espía, llamado una sola
   vez).
 - **Recuperación: reconciliar con clave, `step_indeterminate` sin ella.**
-  `belay/executor/recovery.py::recover_session` escanea el ledger de una
+  `rekha/executor/recovery.py::recover_session` escanea el ledger de una
   sesión buscando pasos con `tool_called` pero sin `result_recorded` (la
   ventana de caída literal del §8.1: "a crash between 3 and 4"). Si el paso
   declaró `idempotency_key`, reconcilia reinvocando el upstream vía un
@@ -72,7 +72,7 @@ recuperación tras caída.
   clave y devuelva el resultado original, no que repita el efecto) y
   completa el ciclo con un `result_recorded` marcado `recovered: true`. Si
   no hay clave, no hay forma segura de saber si la llamada tuvo efecto —
-  Belay no adivina: apenda `step_indeterminate` como evento de primera
+  Rekha no adivina: apenda `step_indeterminate` como evento de primera
   clase (no una excepción, no un salto silencioso) y lo deja ahí.
   **Resolución operativa:** un `step_indeterminate` se resuelve hoy
   inspeccionando el upstream directamente (¿existe el efecto o no?) y
@@ -95,7 +95,7 @@ recuperación tras caída.
   ledger coherente.** `tests/executor/test_property_coherence.py` genera
   secuencias de éxito/fallo con Hypothesis, corre `SagaExecutor.run_saga`
   con `auto_compensate=True`, y verifica `verify_coherence` (E2,
-  `belay/ledger/verify.py`) sobre el resultado. Esta es la garantía de
+  `rekha/ledger/verify.py`) sobre el resultado. Esta es la garantía de
   corrección más fuerte de la entrega: no depende de que el autor haya
   pensado en el caso concreto, sino de que la propiedad se sostenga para
   cualquier secuencia.
@@ -110,7 +110,7 @@ recuperación tras caída.
   "una saga que falla a mitad de camino se deshace sola", que es
   exactamente el criterio de salida de esta entrega.
 - **`ExecuteStage` reemplaza el passthrough, sin cambiar las etapas
-  anteriores.** `belay/proxy/lifecycle.py::Lifecycle.govern_and_execute`
+  anteriores.** `rekha/proxy/lifecycle.py::Lifecycle.govern_and_execute`
   ya no apenda `tool_called`/`result_recorded` directamente; delega en
   `ExecuteStage.execute`, que envuelve un `SagaExecutor` construido con el
   mismo `ContractSet` fijado por la sesión. `resolve -> plan -> policy ->
@@ -120,7 +120,7 @@ recuperación tras caída.
   (FastMCP) con una tabla en memoria y `get/create/update/delete/
   import_records/export_records`, análogo a `examples/fs-server`. El test
   de aceptación (`tests/executor/test_crm_mock_acceptance.py`) lo levanta
-  como subproceso stdio real vía `belay.proxy.upstream.connect_stdio` y
+  como subproceso stdio real vía `rekha.proxy.upstream.connect_stdio` y
   corre una saga de 5 pasos con fallo inyectado en el paso 4 y
   `auto_compensate=True`; solo los tests de idempotencia (E6 (c)) usan un
   upstream espía/mock — el criterio de salida se prueba contra un
@@ -132,9 +132,9 @@ recuperación tras caída.
 - `docs/spec.md` §8 (Execution semantics), §4.2 (conditional/irreversible),
   §9.2 (verify_coherence), §12 (TOCTOU).
 - `docs/plan.md` sección "E6 — Ejecutor de sagas (spec §8)".
-- Código: `belay/executor/saga.py`, `belay/executor/idempotency.py`,
-  `belay/executor/recovery.py`, `belay/db/models.py` (`IdempotencyRow`),
-  `belay/proxy/lifecycle.py` (`ExecuteStage`), `examples/crm-mock/server.py`,
+- Código: `rekha/executor/saga.py`, `rekha/executor/idempotency.py`,
+  `rekha/executor/recovery.py`, `rekha/db/models.py` (`IdempotencyRow`),
+  `rekha/proxy/lifecycle.py` (`ExecuteStage`), `examples/crm-mock/server.py`,
   `examples/contracts/crm.yaml`.
 - Tests: `tests/executor/test_stage_order.py`,
   `tests/executor/test_capture.py`, `tests/executor/test_idempotency.py`,

@@ -17,7 +17,7 @@
 - Rewrite `.github/workflows/release.yaml`: tag and recoverable workflow-dispatch release.
 - Modify `.github/workflows/ci.yaml`: frozen-binary connect smoke on all OSes.
 - Create `docs/release-runbook.md`: immutable-tag, recovery, settings, and evidence procedure.
-- Create `docs/assets/belay-demo.gif`: rendered real demo.
+- Create `docs/assets/rekha-demo.gif`: rendered real demo.
 - Modify `examples/demo.tape`, `README.md`, `CHANGELOG.md`, `SECURITY.md`: final public release state.
 
 ### Task 1: Implement release preflight and inventory validation
@@ -101,7 +101,7 @@ git commit -m "ci: make prereleases recoverable by immutable tag"
 
 - [ ] **Step 1: Add a failing frozen-launch assertion**
 
-The smoke must inspect the fake client's recorded registration and assert it launches the absolute `belay`/`belay.exe` directly with `run --config ...`, never `python`, `py`, or `belay.cli.main`.
+The smoke must inspect the fake client's recorded registration and assert it launches the absolute `rekha`/`rekha.exe` directly with `run --config ...`, never `python`, `py`, or `rekha.cli.main`.
 
 - [ ] **Step 2: Run the smoke test red if frozen mode is not supported**
 
@@ -122,12 +122,12 @@ git commit -m "ci: exercise frozen zero-config connections"
 
 **Files:**
 - Modify: `examples/demo.tape`
-- Create: `docs/assets/belay-demo.gif`
+- Create: `docs/assets/rekha-demo.gif`
 - Modify: `README.md`
 
 - [ ] **Step 1: Make the tape self-contained**
 
-Set output to `docs/assets/belay-demo.gif`, run committed commands from repository root, use deterministic terminal dimensions/timing, and remove the stale comment saying VHS was unavailable.
+Set output to `docs/assets/rekha-demo.gif`, run committed commands from repository root, use deterministic terminal dimensions/timing, and remove the stale comment saying VHS was unavailable.
 
 - [ ] **Step 2: Run the underlying demo first**
 
@@ -139,7 +139,7 @@ Expected: real pause/approval/execution/rewind narrative completes and chain/coh
 
 Run: `vhs examples/demo.tape`
 
-Expected: `docs/assets/belay-demo.gif` exists, is nonempty, and visibly shows the actual committed demo output.
+Expected: `docs/assets/rekha-demo.gif` exists, is nonempty, and visibly shows the actual committed demo output.
 
 - [ ] **Step 4: Inspect and compress without changing content**
 
@@ -152,8 +152,8 @@ Use a relative Markdown image link and state the exact regeneration command.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add examples/demo.tape docs/assets/belay-demo.gif README.md
-git commit -m "docs: embed the reproducible Belay demo"
+git add examples/demo.tape docs/assets/rekha-demo.gif README.md
+git commit -m "docs: embed the reproducible Rekha demo"
 ```
 
 ### Task 5: Write the operator runbook and final release copy
@@ -191,7 +191,7 @@ git commit -m "docs: add the prerelease operator runbook"
 
 - [ ] **Step 1: Run every local gate**
 
-Run: `ruff check . && mypy belay && py -3.13 -m pytest && py -3.13 -W error::ResourceWarning -m pytest -m "" --no-cov && py -3.13 scripts/traceability.py --check && py -3.13 -m conformance.cli run --target belay --level 3 && py -3.13 examples/demo.py --oops`
+Run: `ruff check . && mypy rekha && py -3.13 -m pytest && py -3.13 -W error::ResourceWarning -m pytest -m "" --no-cov && py -3.13 scripts/traceability.py --check && py -3.13 -m conformance.cli run --target rekha --level 3 && py -3.13 examples/demo.py --oops`
 
 Expected: all pass; branch coverage ≥81%; no unclosed SQLite warning; demo verifies chain/coherence/rewind.
 
@@ -211,11 +211,11 @@ Merge only after checks pass, then fast-forward local `main` to `origin/main` an
 
 - [ ] **Step 1: Enable private vulnerability reporting**
 
-Run: `gh api --method PUT repos/Jairogelpi/belay-mcp/private-vulnerability-reporting`
+Run: `gh api --method PUT repos/Jairogelpi/rekha/private-vulnerability-reporting`
 
 - [ ] **Step 2: Read it back**
 
-Run: `gh api repos/Jairogelpi/belay-mcp/private-vulnerability-reporting`
+Run: `gh api repos/Jairogelpi/rekha/private-vulnerability-reporting`
 
 Expected: enabled/true response.
 
@@ -227,7 +227,7 @@ Do not create the `main` protection rule yet. The approved rollout applies it on
 
 - [ ] **Step 1: Run preflight on merged main**
 
-Run: `py -3.13 scripts/release_preflight.py prepare --tag v0.2.0a1 --repo Jairogelpi/belay-mcp`
+Run: `py -3.13 scripts/release_preflight.py prepare --tag v0.2.0a1 --repo Jairogelpi/rekha`
 
 Expected: clean tree, main equals origin, versions match, tag absent, PyPI disabled/absent, required checks green.
 

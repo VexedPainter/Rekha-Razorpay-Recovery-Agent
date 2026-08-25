@@ -7,7 +7,7 @@ Estado: aceptado
 
 E9 implementa `docs/plan.md` sección "E9 — Demo, docs y pulido de
 portfolio" y cierra la Definición de Terminado global (§0). No añade
-comportamiento nuevo a `belay/`; produce el guion de demo reproducible, la
+comportamiento nuevo a `rekha/`; produce el guion de demo reproducible, la
 arquitectura documentada, el README final, la plantilla de contribución +
 issues, y el workflow de release. El motor (E0-E8) ya estaba completo y
 verificado (225 tests, 93% cobertura, L3) antes de empezar esta entrega.
@@ -16,10 +16,10 @@ verificado (225 tests, 93% cobertura, L3) antes de empezar esta entrega.
 
 - **`examples/demo.py` usa la vía de "narrow por re-plan" que E7
   realmente construyó, no un `--narrow` inventado.** ADR 0007 ya documentó
-  que `belay approvals approve --narrow <filter>` no existe y que el flujo
+  que `rekha approvals approve --narrow <filter>` no existe y que el flujo
   probado es que el agente reintente con `args` distintos (nuevo `plan_id`,
   spec §12) y el humano apruebe *ese* plan. Añadir un `--narrow` real habría
-  significado que `belay approvals approve` reescribiera el plan aprobado
+  significado que `rekha approvals approve` reescribiera el plan aprobado
   para que difiera de lo que el agente pidió — un cambio de semántica de
   aprobación (spec §7: el humano aprueba *el plan*, no edita el plan del
   agente desde la consola) que no es una mejora de UX pequeña y limpia; es
@@ -28,10 +28,10 @@ verificado (225 tests, 93% cobertura, L3) antes de empezar esta entrega.
   distinto + approve del plan estrecho, exactamente el camino que
   `tests/cli/test_rewind.py` ya prueba end-to-end.
 - **`demo.py` es un script real, no una grabación con texto embebido.**
-  Ejecuta `belay wrap`, spawnea `belay run` (vía el SDK MCP, equivalente a
-  `belay run &` en una terminal real), simula al agente con llamadas MCP
+  Ejecuta `rekha wrap`, spawnea `rekha run` (vía el SDK MCP, equivalente a
+  `rekha run &` en una terminal real), simula al agente con llamadas MCP
   reales contra `examples/crm-mock`, y hace shell-out al CLI real de
-  `belay` (`approvals list/approve/reject`, `rewind --dry-run`, `rewind
+  `rekha` (`approvals list/approve/reject`, `rewind --dry-run`, `rewind
   --by`, `verify`) para cada paso que un humano teclearía. Se verificó
   corriéndolo como subproceso dos veces (con y sin `--oops`); ambas
   terminan con `chain: OK` / `coherence: OK` / "session fully compensated".
@@ -63,8 +63,8 @@ verificado (225 tests, 93% cobertura, L3) antes de empezar esta entrega.
   (guion VHS real, listo para `vhs examples/demo.tape`) documentado en el
   README como brecha honesta con su comando exacto de resolución.
 - **`docs/architecture.md` deriva el diagrama de la estructura de módulos
-  real** (`belay/{contracts,planner,policy,approvals,executor,rewind,
-  ledger,proxy}`) y del orden normativo en `belay/proxy/lifecycle.py`
+  real** (`rekha/{contracts,planner,policy,approvals,executor,rewind,
+  ledger,proxy}`) y del orden normativo en `rekha/proxy/lifecycle.py`
   (resolve -> plan -> policy -> approval -> execute), no de una
   paráfrasis de la spec. Incluye el hecho de que el fencing de rewind es
   un evento de ledger compartido entre procesos (ADR 0007), visible en el
@@ -73,12 +73,12 @@ verificado (225 tests, 93% cobertura, L3) antes de empezar esta entrega.
 - **README:** badge de PyPI omitido explícitamente con una nota, en vez de
   un badge que apuntaría a un proyecto PyPI que no existe todavía (no hay
   paquete publicado; `pyproject.toml` sigue en `0.1.0.dev0`). Badge de CI
-  apunta al workflow real (`ci.yaml`) en `github.com/Jairogelpi/belay-mcp`
-  (el remoto real del repo, no `belay-mcp/belay` como decían las URLs de
+  apunta al workflow real (`ci.yaml`) en `github.com/Jairogelpi/rekha`
+  (el remoto real del repo, no `rekha/rekha` como decían las URLs de
   `pyproject.toml` — discrepancia preexistente, no corregida aquí porque
   cambiar `pyproject.toml`'s `[project.urls]` está fuera del alcance
   declarado de E9 y no bloquea nada del DoD). Badge de conformance L3
-  reclamado porque `belay-conformance run --target belay --level 3` se
+  reclamado porque `rekha-conformance run --target rekha --level 3` se
   re-verificó pasando en esta entrega.
 - **Sección comparativa** cita categorías reales (gateways/routers MCP,
   observabilidad de agentes, motores de saga/workflow enterprise) con

@@ -16,7 +16,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from belay.finance.money import Money
 from recovery.agent import derive_now_epoch
 from recovery.diagnose import (
     DEFAULT_BATCH_SIZE,
@@ -34,6 +33,7 @@ from recovery.proposal import (
     Strategy,
 )
 from recovery.providers import ProviderError
+from rekha.finance.money import Money
 
 INR = "INR"
 

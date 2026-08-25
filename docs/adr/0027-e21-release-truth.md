@@ -18,7 +18,7 @@ public project material:
 
 On 2026-08-12, Python 3.13 measured the branch-aware fast gate at 81.15% total
 coverage. The safe reproducible branch-aware fast-gate command is
-`py -3.13 -m pytest -m "not slow and not live_conformance" --cov=belay
+`py -3.13 -m pytest -m "not slow and not live_conformance" --cov=rekha
 --cov-branch --cov-report=term`. This is a measured baseline for the current
 release-readiness work, not evidence that either historical target was
 achieved.

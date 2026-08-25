@@ -42,11 +42,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from belay.finance.money import Money
-from belay.finance.money import total as sum_money
-from belay.ledger.model import Event
-from belay.razorpay.forecast import RECOVERY_PROPOSED
-from belay.razorpay.webhooks import correlate_recoveries
+from rekha.finance.money import Money
+from rekha.finance.money import total as sum_money
+from rekha.ledger.model import Event
+from rekha.razorpay.forecast import RECOVERY_PROPOSED
+from rekha.razorpay.webhooks import correlate_recoveries
 
 #: Forecast buckets for the calibration curve. Ten would be finer but leaves too
 #: few samples per bucket in a 200-payment cohort to say anything -- a bucket with

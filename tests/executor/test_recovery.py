@@ -4,9 +4,9 @@ between `calling` and `result_recorded` (spec §8.1 paragraph 2)."""
 from __future__ import annotations
 
 import pytest
-from belay.executor.idempotency import IdempotencyStore
-from belay.executor.recovery import recover_session
-from belay.ledger.store import LedgerStore
+from rekha.executor.idempotency import IdempotencyStore
+from rekha.executor.recovery import recover_session
+from rekha.ledger.store import LedgerStore
 
 pytestmark = pytest.mark.anyio
 

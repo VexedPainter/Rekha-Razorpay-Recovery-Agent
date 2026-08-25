@@ -1,10 +1,10 @@
-"""belay/rewind/intent.py: --intent/--keep resolution to a --to-step cutoff."""
+"""rekha/rewind/intent.py: --intent/--keep resolution to a --to-step cutoff."""
 
 from __future__ import annotations
 
 import pytest
-from belay.ledger.store import LedgerStore
-from belay.rewind.intent import IntentRewindError, resolve_intent_to_step
+from rekha.ledger.store import LedgerStore
+from rekha.rewind.intent import IntentRewindError, resolve_intent_to_step
 
 
 def _session_with_intents(*intents: str) -> tuple[LedgerStore, str]:

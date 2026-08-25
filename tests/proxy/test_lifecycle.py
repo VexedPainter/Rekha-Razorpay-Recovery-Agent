@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import pytest
-from belay.contracts.loader import load_contract_set
-from belay.contracts.model import Contract, ContractSet, Effect
-from belay.errors import BelayError
-from belay.ledger.store import LedgerStore
-from belay.policy.model import Cap, CapMatch, Defaults, PolicyDoc, ToolRule
-from belay.proxy.lifecycle import Lifecycle, resolve
+from rekha.contracts.loader import load_contract_set
+from rekha.contracts.model import Contract, ContractSet, Effect
+from rekha.errors import RekhaError
+from rekha.ledger.store import LedgerStore
+from rekha.policy.model import Cap, CapMatch, Defaults, PolicyDoc, ToolRule
+from rekha.proxy.lifecycle import Lifecycle, resolve
 
 pytestmark = pytest.mark.anyio
 
@@ -24,7 +24,7 @@ def _empty_contract_set() -> ContractSet:
 
 def _read_contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="fs.read_file",
         reversibility="irreversible",
         effects=[Effect(type="read", resource="fs.file")],
@@ -50,7 +50,7 @@ def test_read_only_hint_with_no_contract_is_allowed_with_implicit_read_effect() 
 
 def test_no_contract_and_no_read_only_hint_is_contract_missing() -> None:
     """@spec("4.6.1") — no contract and not read-only MUST refuse with contract_missing."""
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         resolve(
             "fs.write_file",
             {"path": "a"},
@@ -62,9 +62,9 @@ def test_no_contract_and_no_read_only_hint_is_contract_missing() -> None:
 
 
 def test_destructive_hint_with_no_contract_is_still_contract_missing() -> None:
-    # Appendix C: `destructiveHint: true` with no Belay contract => contract_missing.
+    # Appendix C: `destructiveHint: true` with no Rekha contract => contract_missing.
     # Hints never authorize on their own -- only readOnlyHint does.
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         resolve(
             "fs.delete_file",
             {"path": "a"},
@@ -120,7 +120,7 @@ async def test_unsafe_passthrough_does_not_apply_to_other_tools() -> None:
         ledger=ledger,
         session_id="s_test2",
     )
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "fs.other_tool", {}, read_only_hint=False, executor=_noop_executor
         )
@@ -147,7 +147,7 @@ async def test_session_fixes_set_hash_and_later_contract_changes_do_not_apply() 
 
     # R1.7.4 (ADR 0025): the same policy_hash ApprovalStage records against
     # every CapabilityLease consumption (R1.7.1) is folded into
-    # session_started's own payload, so belay/ledger/signing.py::SignedEvidence
+    # session_started's own payload, so rekha/ledger/signing.py::SignedEvidence
     # can sign/verify which policy governed this session.
     assert started.payload["policy_hash"] == lifecycle._policy_hash
     assert "contracts=" in started.payload["policy_hash"]
@@ -170,7 +170,7 @@ async def test_session_fixes_set_hash_and_later_contract_changes_do_not_apply() 
 
 def _irreversible_send_contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="mail.send",
         reversibility="irreversible",
         effects=[Effect(type="send", resource="email.message", count="1")],
@@ -235,7 +235,7 @@ async def test_deny_verdict_blocks_execution_and_never_calls_the_executor() -> N
     )
     lifecycle.start_session("test-fixture")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "mail.send", {"to": "a@example.com"}, read_only_hint=False, executor=executor
         )
@@ -336,7 +336,7 @@ async def test_a_third_call_with_the_same_args_after_execution_is_idempotency_co
     )
     assert second == {"ok": True, "tool": "mail.send"}
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "mail.send", {"to": "a@example.com"}, read_only_hint=False, executor=_noop_executor
         )
@@ -390,7 +390,7 @@ async def test_paused_then_rejected_raises_approval_rejected_with_reason() -> No
         first["approval_id"], rejected_by="jairo", reason="not now"
     )
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "mail.send", {"to": "a@example.com"}, read_only_hint=False, executor=_noop_executor
         )

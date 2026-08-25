@@ -1,7 +1,7 @@
 """Signed, offline-verifiable evidence (plan-v2 E13).
 
 `sign_session`/`verify_evidence` reuse `verify_chain`/`verify_coherence` (E2)
-and `belay/canonical.py` -- no parallel chain-recomputation, no second
+and `rekha/canonical.py` -- no parallel chain-recomputation, no second
 canonicalization. These tests cover the four tamper scenarios from
 plan-v2's E13 section, each asserting the *specific* failure stage reported.
 """
@@ -11,12 +11,12 @@ from __future__ import annotations
 import json
 
 import pytest
-from belay.ledger.model import Event
-from belay.ledger.signing import SignedEvidence, SigningKey, sign_session, verify_evidence
-from belay.ledger.store import LedgerStore
 from cryptography.hazmat.primitives import serialization
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from rekha.ledger.model import Event
+from rekha.ledger.signing import SignedEvidence, SigningKey, sign_session, verify_evidence
+from rekha.ledger.store import LedgerStore
 
 
 def _seed_session(store: LedgerStore, session_id: str = "s1") -> list[Event]:
@@ -94,7 +94,7 @@ def test_tamper_c_summary_field_edited_without_resigning_fails_signature() -> No
 
 def test_session_with_a_policy_hash_signs_and_verifies_cleanly() -> None:
     """R1.7.4 (ADR 0025): `session_started.payload["policy_hash"]`
-    (`belay/proxy/lifecycle.py::Lifecycle.start_session`) is signed and
+    (`rekha/proxy/lifecycle.py::Lifecycle.start_session`) is signed and
     verified exactly like `initiated_by`/`on_behalf_of` (E14)."""
     store = LedgerStore()
     session_id = "s_policy"
@@ -212,7 +212,7 @@ def test_private_key_never_appears_in_the_exported_evidence_bytes() -> None:
 def test_regression_verify_chain_and_verify_coherence_unaffected_by_signing() -> None:
     """E2's verify_chain/verify_coherence keep working exactly as before --
     signing is purely additive, never invoked unless opted into."""
-    from belay.ledger.verify import verify_chain, verify_coherence
+    from rekha.ledger.verify import verify_chain, verify_coherence
 
     store = LedgerStore()
     events = _seed_session(store)
@@ -260,9 +260,9 @@ def test_property_flipping_any_single_byte_in_events_always_fails_verification(s
     assert not report.ok, f"byte flip at {pos} in events was not detected"
 
 
-def test_verify_evidence_roundtrip_with_no_belay_db_present(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_verify_evidence_roundtrip_with_no_rekha_db_present(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Prove the 'no installation needed' claim for real: verify_evidence needs
-    only the exported file, no belay.db anywhere near it."""
+    only the exported file, no rekha.db anywhere near it."""
     store = LedgerStore()
     events = _seed_session(store)
     key = SigningKey.generate()
@@ -271,7 +271,7 @@ def test_verify_evidence_roundtrip_with_no_belay_db_present(tmp_path) -> None:  
     evidence_file = tmp_path / "evidence.json"
     evidence_file.write_text(bundle.model_dump_json(indent=2), encoding="utf-8")
 
-    assert not (tmp_path / "belay.db").exists()
+    assert not (tmp_path / "rekha.db").exists()
     assert list(tmp_path.glob("*.db")) == []
 
     loaded = SignedEvidence.model_validate_json(evidence_file.read_text(encoding="utf-8"))

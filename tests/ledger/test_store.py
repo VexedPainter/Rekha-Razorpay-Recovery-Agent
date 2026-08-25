@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from belay.ledger.model import GENESIS_HASH
-from belay.ledger.store import LedgerStore
+from rekha.ledger.model import GENESIS_HASH
+from rekha.ledger.store import LedgerStore
 
 
 def make_store() -> LedgerStore:

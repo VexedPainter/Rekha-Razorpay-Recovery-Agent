@@ -1,12 +1,12 @@
-"""Unit + property tests for the Belay expression language (spec §4.3)."""
+"""Unit + property tests for the Rekha expression language (spec §4.3)."""
 
 from __future__ import annotations
 
 import pytest
-from belay.contracts.expressions import evaluate, parse
-from belay.errors import BelayError
 from hypothesis import given
 from hypothesis import strategies as st
+from rekha.contracts.expressions import evaluate, parse
+from rekha.errors import RekhaError
 
 SCOPE = {
     "args": {"id": 42, "path": "/tmp/x", "nested": {"a": {"b": 7}}},
@@ -114,26 +114,26 @@ def test_precedence_and_binds_tighter_than_or() -> None:
 )
 def test_rejects_out_of_grammar_expressions(text: str) -> None:
     """@spec("4.3") — implementations MUST reject any construct outside the expression grammar."""
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         parse(text)
     assert exc_info.value.code == "expression_invalid"
 
 
 def test_rejects_dunder_attribute_access_explicitly() -> None:
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         parse("$state.__class__")
     assert exc_info.value.code == "expression_invalid"
 
 
 def test_rejects_function_calls_other_than_coalesce() -> None:
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         parse("eval($args.id)")
     assert exc_info.value.code == "expression_invalid"
 
 
 def test_never_uses_eval_or_exec_module_globals() -> None:
     # Guards against a regression that reintroduces eval/exec.
-    import belay.contracts.expressions as expr_mod
+    import rekha.contracts.expressions as expr_mod
 
     src = expr_mod.__file__
     with open(src, encoding="utf-8") as f:
@@ -172,7 +172,7 @@ def test_property_in_grammar_combinations_always_parse_or_raise_expression_inval
         # can only ever touch the closed scope mapping (type mismatches are
         # a legitimate expression_invalid, not a crash).
         evaluate(expr, SCOPE)
-    except BelayError as exc:
+    except RekhaError as exc:
         assert exc.code == "expression_invalid"
 
 
@@ -180,5 +180,5 @@ def test_property_in_grammar_combinations_always_parse_or_raise_expression_inval
 def test_property_arbitrary_grammar_alphabet_strings_never_crash_the_parser(text: str) -> None:
     try:
         parse(text)
-    except BelayError as exc:
+    except RekhaError as exc:
         assert exc.code == "expression_invalid"

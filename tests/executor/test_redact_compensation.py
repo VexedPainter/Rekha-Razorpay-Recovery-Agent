@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from belay.contracts.model import Contract, Effect, Undo
-from belay.executor.saga import SagaExecutor
-from belay.ledger.store import LedgerStore
+from rekha.contracts.model import Contract, Effect, Undo
+from rekha.executor.saga import SagaExecutor
+from rekha.ledger.store import LedgerStore
 
 pytestmark = pytest.mark.anyio
 
@@ -23,7 +23,7 @@ def anyio_backend() -> str:
 
 def _contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="auth.grant",
         reversibility="reversible",
         undo=Undo(tool="auth.revoke", args={"password": "$args.password"}),
@@ -60,7 +60,7 @@ async def test_compensation_registered_and_executed_redact_declared_secret() -> 
 async def test_auto_unwind_compensation_also_redacts() -> None:
     """`run_saga(auto_compensate=True)`'s unwind path goes through the same
     `SagaExecutor.compensate` -- must thread the contract through there too."""
-    from belay.executor.saga import SagaStep
+    from rekha.executor.saga import SagaStep
 
     ledger = LedgerStore()
     saga = SagaExecutor(ledger=ledger)

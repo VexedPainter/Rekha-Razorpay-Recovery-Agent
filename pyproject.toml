@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "belay-mcp"
+name = "rekha"
 version = "0.3.0a1"
 description = "AI revenue recovery for Razorpay, with a deterministic financial control plane: merchant mandates, policy limits, approvals, idempotency, hash-chained evidence, and settlement verification."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
-authors = [{ name = "Belay contributors" }]
+authors = [{ name = "Rahul J" }]
 keywords = ["razorpay", "payments", "agents", "revenue-recovery", "mcp", "settlement", "audit"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -25,8 +25,8 @@ dependencies = [
     # CallToolResult.isError/structuredContent -> is_error/
     # structured_content) and moved/removed
     # mcp.shared.memory.create_connected_server_and_client_session --
-    # genuine breaking changes belay/proxy/server.py, belay/contracts/
-    # draft.py, and belay/cli/main.py are not yet updated for (found via a
+    # genuine breaking changes rekha/proxy/server.py, rekha/contracts/
+    # draft.py, and rekha/cli/main.py are not yet updated for (found via a
     # real fresh CI install, not assumed). Pinned below 2.0 until that
     # migration happens as its own dedicated, tested piece of work --
     # not attempted piecemeal alongside unrelated changes.
@@ -43,12 +43,12 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Jairogelpi/belay-mcp"
-Specification = "https://github.com/Jairogelpi/belay-mcp/blob/main/docs/spec.md"
+Homepage = "https://github.com/Jairogelpi/rekha"
+Specification = "https://github.com/Jairogelpi/rekha/blob/main/docs/spec.md"
 
 [project.scripts]
-belay = "belay.cli.main:main"
-belay-conformance = "conformance.cli:main"
+rekha = "rekha.cli.main:main"
+rekha-conformance = "conformance.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -62,19 +62,19 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["belay", "conformance", "recovery", "bench"]
+packages = ["rekha", "conformance", "recovery", "bench"]
 
 [tool.hatch.build.targets.wheel.force-include]
 # The conformance suite locates fixtures via `Path(__file__).parents[2] /
 # "examples"` (repo-root-relative in dev) -- shipping `examples/` as a
-# top-level sibling of `belay/`/`conformance/` in the wheel keeps that
-# same relative path valid for an installed `belay-conformance` too.
+# top-level sibling of `rekha/`/`conformance/` in the wheel keeps that
+# same relative path valid for an installed `rekha-conformance` too.
 "examples" = "examples"
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["belay", "recovery", "bench", "tests"]
+src = ["rekha", "recovery", "bench", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
@@ -103,7 +103,7 @@ module = "cohort"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-addopts = "--cov=belay --cov=recovery --cov-branch --cov-report=term-missing -m \"not slow and not live_conformance and not live_llm and not live_razorpay\""
+addopts = "--cov=rekha --cov=recovery --cov-branch --cov-report=term-missing -m \"not slow and not live_conformance and not live_llm and not live_razorpay\""
 testpaths = ["tests"]
 markers = [
     "slow: starts a real MCP subprocess or otherwise runs noticeably longer than the fast suite",
@@ -116,7 +116,7 @@ markers = [
 # The recovery package is measured too: it is a first-class package with real
 # logic, and leaving the AI layer unmeasured would hide exactly the code most
 # likely to have been written in a hurry.
-source = ["belay", "recovery"]
+source = ["rekha", "recovery"]
 
 [tool.coverage.report]
 # Measured branch coverage was 83.95% on 2026-08-25, immediately after the

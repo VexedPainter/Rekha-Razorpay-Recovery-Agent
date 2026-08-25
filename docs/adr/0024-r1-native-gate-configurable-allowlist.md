@@ -8,7 +8,7 @@ Accepted, implemented (opt-in, off by default).
 
 Bash's remaining gap in R1 (extending it to a real `PolicyEngine` like the
 MCP proxy has) was explicitly scoped out as a different kind of problem:
-`belay/hooks/decision.py::classify_bash` classifies arbitrary shell text,
+`rekha/hooks/decision.py::classify_bash` classifies arbitrary shell text,
 not a fixed tool name -- there is no stable identity to resolve a
 `Contract` against the way `--contracts`/`--quota-max` do for
 file-edit/MCP/quota slices. Assigning policy-evaluable "effects" to e.g.
@@ -21,14 +21,14 @@ What *is* a real, bounded slice: the built-in safe-read allowlist
 `grep`, `pytest`, `pwd`, `echo`, etc.) is hardcoded and identical for every
 install. An operator whose project has its own genuinely safe, frequently
 run commands (a lint/test/format command with no side effects, say) has
-no way to add them without editing `belay`'s own source. This is not "Bash
+no way to add them without editing `rekha`'s own source. This is not "Bash
 gets governed like the MCP proxy" -- it is a narrower, honestly-scoped
 improvement to the existing allowlist mechanism, and is documented as
 such rather than conflated with the harder problem.
 
 ## Decision
 
-`belay/hooks/decision.py::load_extra_allowlist(path)` parses a plain-text
+`rekha/hooks/decision.py::load_extra_allowlist(path)` parses a plain-text
 file: one **literal** command prefix per line, blank lines and
 `#`-comment lines ignored. Deliberately literal strings, never regex --
 letting an operator author a regex here risks an accidental `.*`-shaped
@@ -48,7 +48,7 @@ entry containing a metacharacter (fails loudly at load time — such an
 entry could never match a real command anyway, so shipping it silently
 would just be confusing dead configuration).
 
-Configuration mirrors ADR 0021/0023's pattern exactly: `belay hooks
+Configuration mirrors ADR 0021/0023's pattern exactly: `rekha hooks
 install --allowlist-extra <file>`, validated eagerly at install time
 (parses and rejects invalid entries before anything is written),
 persisted via a one-line pointer file
@@ -61,7 +61,7 @@ denying every Bash command).
 ## Consequences
 
 - An operator can extend the safe-read allowlist for their own project's
-  genuinely safe commands, without a source change to `belay` itself.
+  genuinely safe commands, without a source change to `rekha` itself.
 - Strictly additive and one-directional: can only turn a PAUSE into an
   ALLOW for an entry the operator explicitly wrote, never weakens the
   metacharacter guard or the built-in patterns.
@@ -71,7 +71,7 @@ denying every Bash command).
   policy-evaluated governance remains explicitly out of scope and
   unaddressed by this slice.
 - Known minor gap, inherited from ADR 0021/0023 and not fixed here
-  either: `belay hooks uninstall` does not clear
+  either: `rekha hooks uninstall` does not clear
   `extra_allowlist_pointer_path` (or `contracts_pointer_path`/
   `quota_config_path`) -- a subsequent `hooks install` without
   `--allowlist-extra` leaves a stale prior file in place until removed by

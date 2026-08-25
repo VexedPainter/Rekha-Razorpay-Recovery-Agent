@@ -9,7 +9,7 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: mypy belay
+        entry: mypy rekha
         language: system
         pass_filenames: false
         types: [python]

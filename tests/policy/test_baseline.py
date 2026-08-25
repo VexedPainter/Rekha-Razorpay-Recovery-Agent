@@ -1,14 +1,14 @@
-"""Tests for `belay.policy.baseline`: Welford streaming stats + per-session BaselineStore."""
+"""Tests for `rekha.policy.baseline`: Welford streaming stats + per-session BaselineStore."""
 
 from __future__ import annotations
 
 import statistics
 
 import pytest
-from belay.ledger.store import LedgerStore
-from belay.policy.baseline import BaselineStore, Welford
 from hypothesis import given
 from hypothesis import strategies as st
+from rekha.ledger.store import LedgerStore
+from rekha.policy.baseline import BaselineStore, Welford
 
 
 @given(

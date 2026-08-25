@@ -18,16 +18,16 @@ and CI-green. The next item on the roadmap, "R1.8: TransactionEngine
 único," was described as moving contracts, the intent contract,
 `PolicyEngine`, quotas, anomaly baselines, approvals, fencing, evidence,
 and rewind onto one shared engine for both the MCP proxy
-(`belay/proxy/lifecycle.py`, *mediated* -- Belay itself executes calls)
-and the Native Agent Gate hooks path (`belay/hooks/gate.py`, *observed*
--- Claude Code executes, Belay only decides whether it was allowed to).
+(`rekha/proxy/lifecycle.py`, *mediated* -- Rekha itself executes calls)
+and the Native Agent Gate hooks path (`rekha/hooks/gate.py`, *observed*
+-- Claude Code executes, Rekha only decides whether it was allowed to).
 
 R1.7.3 already found one instance of a pattern worth naming precisely:
 wiring hooks into `PolicyEngine.evaluate()` directly would leave its
 anomaly and quota dimensions **permanently inert**, because both key on
 ledger event types (`session_started`, `plan_created`) the hooks path
-structurally never writes -- confirmed via `belay/policy/baseline.py`
-(anomaly, keys on `plan_created`) and `belay/policy/engine.py`'s quota
+structurally never writes -- confirmed via `rekha/policy/baseline.py`
+(anomaly, keys on `plan_created`) and `rekha/policy/engine.py`'s quota
 check (keys on `session_started.initiated_by`). ADR 0025 deferred that
 specific question to "after R1.10 (shared quota/anomaly store)."
 
@@ -39,38 +39,38 @@ finding was a one-off or a pattern.
 ## What was found: it is the same wall, every time
 
 **Intent contracts are a complete, MCP-only subsystem with zero hooks
-footprint.** `belay/intent/model.py`'s `IntentContract`
+footprint.** `rekha/intent/model.py`'s `IntentContract`
 (`intent`/`acceptance` free text, `allowed_scope`/`forbidden_scope`
 globs, `forbidden_tools`, `budgets.files_changed`) and
-`belay/intent/enforce.py::check_intent_contract` are wired into
-`belay/proxy/lifecycle.py::Lifecycle.govern_and_execute` as the very
+`rekha/intent/enforce.py::check_intent_contract` are wired into
+`rekha/proxy/lifecycle.py::Lifecycle.govern_and_execute` as the very
 first check (before `resolve`/plan/policy), with `--intent-contract`
-flags on `belay run`, `belay export-pr`, and `belay learn --apply`. A
-grep for "intent" (case-insensitive) across `belay/hooks/` and
-`belay/supervisor/` returns **zero matches** -- not a missing wire-up,
-a conceptually absent idea on that surface. `belay hooks install` has no
+flags on `rekha run`, `rekha export-pr`, and `rekha learn --apply`. A
+grep for "intent" (case-insensitive) across `rekha/hooks/` and
+`rekha/supervisor/` returns **zero matches** -- not a missing wire-up,
+a conceptually absent idea on that surface. `rekha hooks install` has no
 `--intent-contract` flag and nothing analogous.
 
 **Rewind/undo are two genuinely independent systems, with no shared
-code at all.** `belay/rewind/service.py::RewindService` builds a typed
+code at all.** `rekha/rewind/service.py::RewindService` builds a typed
 `RewindPlan`/`RewindStepPlan` classification (`reversible`/
 `irreversible`/`conditional_unmet`/`indeterminate`/`no_op`, reading
 `STEP_COMMITTED`/`STEP_FAILED`/`STEP_INDETERMINATE` events) and
 compensates via the shared `compensate_one` helper, itself policy-gated
-through `PolicyEngine`. `belay/hooks/file_snapshot.py::SnapshotStore` is
+through `PolicyEngine`. `rekha/hooks/file_snapshot.py::SnapshotStore` is
 a completely separate, self-contained content-addressed blob store:
 `capture_before`/`record_after`/`restore` work directly against
-`FileSnapshotRow` and blob files under `belay_home()/snapshots/`,
+`FileSnapshotRow` and blob files under `rekha_home()/snapshots/`,
 `restore()` returns a bare string, and none of `RewindPlan`,
 `CompensationOutcome`, `compensate_one`, `PolicyEngine`, `ContractSet`,
 or `is_fenced()` are imported anywhere in the file. The CLI commands
-confirm the split is total: `belay hooks rewind`/`belay hooks list-edits`
-(`belay/cli/main.py`) talk to `SnapshotStore` directly; `belay rewind`
+confirm the split is total: `rekha hooks rewind`/`rekha hooks list-edits`
+(`rekha/cli/main.py`) talk to `SnapshotStore` directly; `rekha rewind`
 instantiates a real `RewindService`. Neither reads the other's data.
 
 **The root cause is the same single fact behind both findings, and
 behind R1.7.3's quota/anomaly result**:
-`belay/supervisor/server.py::Supervisor._decide` writes exactly two
+`rekha/supervisor/server.py::Supervisor._decide` writes exactly two
 ledger event types for every hook-gated call, always --
 `hook_pre_tool_use` and `hook_post_tool_use` -- and *never* the MCP
 path's rich step lifecycle (`plan_created`, `step_journaled`,
@@ -102,7 +102,7 @@ call existed" and "this call committed/failed/was indeterminate,"
 written *alongside* (never replacing) the existing
 `hook_pre_tool_use`/`hook_post_tool_use` events, with **zero change to
 any existing decision or gating behavior**. Concretely, reuse
-`belay/ledger/model.py::STEP_COMMITTED`/`STEP_FAILED`/
+`rekha/ledger/model.py::STEP_COMMITTED`/`STEP_FAILED`/
 `STEP_INDETERMINATE` (R1.7.2) for the outcome events rather than
 inventing hooks-specific parallel names -- the whole point is to let
 existing MCP-side machinery (`RewindService`'s classification,
@@ -153,12 +153,12 @@ exists, and why**:
 ## Implementation
 
 The redefined R1.8 prerequisite shipped in the same session as this
-ADR. `belay/supervisor/server.py::Supervisor._decide` now writes, per
+ADR. `rekha/supervisor/server.py::Supervisor._decide` now writes, per
 hook-gated call, alongside the original `hook_pre_tool_use`/
 `hook_post_tool_use`:
 
 - **PRE phase**: `plan_created` (payload from the new
-  `belay/hooks/gate.py::plan_created_evidence(event, contract_set)` --
+  `rekha/hooks/gate.py::plan_created_evidence(event, contract_set)` --
   a resolved contract's own `effects`/`reversibility` verbatim when one
   exists, otherwise a coarse, honestly-`irreversible` guess by surface:
   file edits update `native.file`, Bash executes `shell`, anything else
@@ -180,7 +180,7 @@ hook-gated call, alongside the original `hook_pre_tool_use`/
 **One real design correction found only while implementing, not
 anticipated by the Decision section above**: naively emitting
 `step_committed` alone would have made
-`belay/ledger/verify.py::verify_coherence` -- which requires
+`rekha/ledger/verify.py::verify_coherence` -- which requires
 `step_journaled`/`result_recorded`/`compensation_registered` for every
 committed step (spec §9.2) -- start **failing** for every hook-gated
 committed action, where it previously passed trivially (no
@@ -200,7 +200,7 @@ runs a real hook-gated Bash call end to end, then calls the real
 step (`tool="Bash"`, `status="irreversible"`), where before this slice
 it silently returned an empty plan (indistinguishable from an unknown or
 truly empty session). A manual check confirmed the same for
-`belay/cli/causal.py::build_causal_graph`: it now produces a real
+`rekha/cli/causal.py::build_causal_graph`: it now produces a real
 `CausalNode(tool="Bash", status="step_committed", ...)` for a hooks
 session instead of nothing. Neither rewind's actual undo behavior nor
 `causal`'s CLI output format changed for MCP sessions -- both paths are
@@ -210,7 +210,7 @@ purely additive for the hooks surface.
 scope: no `session_started`-shaped event (quota unification remains a
 deferred, revisit-with-evidence question, not silently enabled by
 accident), no real compensation mechanism (rewind for native edits stays
-`belay hooks rewind`'s separate `SnapshotStore`), and no intent-contract
+`rekha hooks rewind`'s separate `SnapshotStore`), and no intent-contract
 enforcement on this surface.
 
 ## Consequences
@@ -239,7 +239,7 @@ enforcement on this surface.
   previously passed trivially) was found only by actually running the
   test suite against real appended events, not by reasoning about the
   design in the abstract.
-- `belay/rewind/service.py::RewindService` and `belay/cli/causal.py` now
+- `rekha/rewind/service.py::RewindService` and `rekha/cli/causal.py` now
   produce real, non-empty output for hook-gated sessions for the first
   time -- both were previously silently blind to the hooks surface, not
   merely "not yet unified" with it.
@@ -251,7 +251,7 @@ anomaly, and rewind unification concretely rather than assume they were
 now automatically unlocked. Investigating each found three different
 answers, not one:
 
-**Quota: still blocked, no new code.** `belay/policy/engine.py`'s quota
+**Quota: still blocked, no new code.** `rekha/policy/engine.py`'s quota
 check keys on `session_started.initiated_by`, an event hooks
 deliberately still does not write -- faking `initiated_by` from
 `event.os_user` would blur the identity distinction ADR 0023 established
@@ -260,7 +260,7 @@ this session"). `HookQuotaTracker` (ADR 0023) remains the permanent
 answer for hooks quota, not a stepping stone.
 
 **Rewind: still two systems, no new code.** Real `step_committed` events
-now flow, but `belay/hooks/gate.py` still emits
+now flow, but `rekha/hooks/gate.py` still emits
 `compensation_registered: {"reversible": false, ...}` for every hooks
 step by design (see "Implementation" above) -- so every hooks-sourced
 step correctly classifies `irreversible`, not "almost reversible."
@@ -270,17 +270,17 @@ restore as an `undo.tool`/`undo.args`-shaped compensation
 consequence of more ledger events existing.
 
 **Anomaly: genuinely different, and built -- but weaker than it first
-looked.** `belay/policy/baseline.py::BaselineStore.stats()` has zero
+looked.** `rekha/policy/baseline.py::BaselineStore.stats()` has zero
 identity dependency (it only reads `plan_created` events matching
 `(tool, effect_type)`), which R1.8 now makes real for hooks. This is the
 opposite blocker from quota, and reusing `BaselineStore` directly
-(`belay/hooks/anomaly.py::evaluate_anomaly`, no parallel tracker) is
+(`rekha/hooks/anomaly.py::evaluate_anomaly`, no parallel tracker) is
 genuinely tractable. Shipped: `AnomalyConfig`/`evaluate_anomaly` wired
 into `evaluate_mcp_call` only (declared read-only auto-allow now falls
 through to the normal pause/queue flow when anomalous, never widening
 anything), `Supervisor._load_anomaly_config` mirroring
 `_load_quota_config`'s R1.6 fail-closed posture exactly, and
-`belay hooks install --anomaly` (a bare opt-in flag, no per-run tuning
+`rekha hooks install --anomaly` (a bare opt-in flag, no per-run tuning
 surface -- fixed thresholds matching `AnomalyDefaults`).
 
 **The limitation found while testing this, corrected from the original
@@ -290,7 +290,7 @@ contracted or not. `resolve_effects` resolves a configured `Contract`'s
 declared effects verbatim (spec §5.3's "contract"-basis: a literal
 string declared once in the YAML). The MCP proxy path only ever sees a
 genuinely varying, real per-call count via `sql_simulator`
-(`belay/planner/planner.py::_sql_effects`, ADR 0011) or `native_dry_run`
+(`rekha/planner/planner.py::_sql_effects`, ADR 0011) or `native_dry_run`
 (the tool executed dry) -- both requiring something to actually run at
 decision time. Hooks has neither: the same literal count comes back on
 every call to a given tool, so `value` always equals `stats.mean` once a
@@ -306,7 +306,7 @@ count source would produce) -- see the rest of
 This is real, tested, foundational machinery -- not dead code -- and the
 correct base for the day hooks gains its own dynamic count source. It is
 not, as of R1.8.x, something that can actually pause a real anomalous
-call; every doc/help string this slice touched (`belay hooks install
+call; every doc/help string this slice touched (`rekha hooks install
 --anomaly --help`, the install-time success message, both docstrings in
-`belay/hooks/anomaly.py`/`belay/hooks/gate.py`) says so plainly rather
+`rekha/hooks/anomaly.py`/`rekha/hooks/gate.py`) says so plainly rather
 than overclaiming parity with the MCP proxy's own anomaly check.

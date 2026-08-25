@@ -10,7 +10,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--conformance-target",
         action="store",
-        default="belay",
+        default="rekha",
         help="ConformanceTarget to run against: a built-in alias or 'module:ClassName'.",
     )
 

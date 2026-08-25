@@ -6,7 +6,7 @@ Accepted, implemented (opt-in, off by default).
 
 ## Context
 
-E15 (`belay/policy/quota.py::QuotaTracker`) gives the MCP proxy a
+E15 (`rekha/policy/quota.py::QuotaTracker`) gives the MCP proxy a
 per-identity rolling cap on approved-and-executed irreversible actions,
 independent of any per-call `Cap`. The Native Agent Gate had no
 equivalent at all -- an audit found two blocking reasons this couldn't be
@@ -16,7 +16,7 @@ a quick reuse, not a design shortcut:
    explicit `--initiated-by` string the MCP proxy requires at session
    start (E14: "an unattributed session must be a deliberate, loud
    choice... never a silently-defaulted blank"). The hooks world has no
-   `--initiated-by` concept anywhere -- `belay hooks install`/`hooks run`
+   `--initiated-by` concept anywhere -- `rekha hooks install`/`hooks run`
    never ask for one.
 2. **Different ledger shapes.** `QuotaTracker.count()` reads
    `plan_created` (for `reversibility`), `policy_evaluated` (for
@@ -30,7 +30,7 @@ Both needed a real decision, not a lift-and-shift.
 ## Decision
 
 **Identity = `HookEvent.os_user`.** Obtained from the OS itself
-(`belay/supervisor/protocol.py::local_os_user`), independent of any
+(`rekha/supervisor/protocol.py::local_os_user`), independent of any
 agent-supplied payload -- the same tamper-resistance property E14's
 `initiated_by` has, just sourced differently because the hooks world has
 no explicit attribution flag to require. This is a real, deliberate,
@@ -39,11 +39,11 @@ user is running this agent" rather than E14's "who authorized this
 session," which is the most honest identity concept the Native Agent Gate
 actually has available today.
 
-**A parallel tracker, not a reuse.** `belay/hooks/quota.py::HookQuotaTracker`
+**A parallel tracker, not a reuse.** `rekha/hooks/quota.py::HookQuotaTracker`
 reads `hook_pre_tool_use` events (now carrying `os_user`, added to
 `gate.py::pre_event_evidence`'s payload -- ledger events are `extra:
 "allow"`, spec §14, so this is a safe additive change) and
-`approval_resolved` events (written by `belay hooks approvals approve`),
+`approval_resolved` events (written by `rekha hooks approvals approve`),
 counting ones where `verdict == "deny"` (i.e., paused) and the
 `approval_id` was later resolved to `"approved"`, within a rolling
 window. Same two-pass shape as `QuotaTracker` (collect approved IDs, then
@@ -54,7 +54,7 @@ irreversible action to `pause` once volume crosses the threshold. In the
 hooks world this doesn't apply: everything that would need a quota check
 already pauses by default (an unrecognized Bash command, a non-read-only
 native MCP call, an oversized file edit) -- there is no "auto-allowed
-irreversible action" for quota to catch. So `belay/hooks/quota.py::QuotaConfig`
+irreversible action" for quota to catch. So `rekha/hooks/quota.py::QuotaConfig`
 escalates the *next* level instead: `pause` -> hard `deny`, once an
 identity has accumulated too many *approved* actions in the window. The
 check only ever gates a **brand-new** pending item (right before
@@ -63,9 +63,9 @@ check only ever gates a **brand-new** pending item (right before
 existing pending/approved/rejected lookup.
 
 **Configuration mirrors ADR 0021's `--contracts` pattern exactly:**
-`belay hooks install --quota-max <N> --quota-window <window>` (e.g. `1d`,
+`rekha hooks install --quota-max <N> --quota-window <window>` (e.g. `1d`,
 `12h`), validated at install time (`parse_window`, reused as-is from
-`belay/policy/quota.py` -- a pure string parser with no MCP coupling),
+`rekha/policy/quota.py` -- a pure string parser with no MCP coupling),
 persisted to a small JSON pointer file
 (`SupervisorIdentity.quota_config_path`), loaded once by
 `Supervisor.__init__` into a `QuotaConfig | None` (`None` — the default —
@@ -82,11 +82,11 @@ denying everything, same posture as `_load_contract_set`).
   unchanged.
 - Does not address Bash's remaining gap (still a static classifier, no
   `PolicyEngine`) or anomaly-baseline tracking -- both still open R1
-  scope. Anomaly baselines (`belay/policy/baseline.py`) face the exact
+  scope. Anomaly baselines (`rekha/policy/baseline.py`) face the exact
   same two blockers quota did (identity, ledger shape) and could
   plausibly follow this same `os_user` + parallel-tracker pattern in a
   future slice, not attempted here.
-- Known minor gap, not fixed in this slice: `belay hooks uninstall` does
+- Known minor gap, not fixed in this slice: `rekha hooks uninstall` does
   not clear `contracts_pointer_path` or `quota_config_path` -- a
   subsequent `hooks install` without `--contracts`/`--quota-max` leaves a
   stale prior config in place until the pointer files are removed by

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from belay.ledger.store import LedgerStore
-from belay.ledger.verify import verify_chain, verify_coherence
+from rekha.ledger.store import LedgerStore
+from rekha.ledger.verify import verify_chain, verify_coherence
 
 
 def test_verify_chain_ok_for_untampered_events() -> None:

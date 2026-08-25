@@ -4,10 +4,10 @@ result, and the upstream is called exactly once (spec §4.5, §8.1)."""
 from __future__ import annotations
 
 import pytest
-from belay.contracts.model import Contract, Effect
-from belay.executor.idempotency import IdempotencyStore
-from belay.executor.saga import SagaExecutor
-from belay.ledger.store import LedgerStore
+from rekha.contracts.model import Contract, Effect
+from rekha.executor.idempotency import IdempotencyStore
+from rekha.executor.saga import SagaExecutor
+from rekha.ledger.store import LedgerStore
 
 pytestmark = pytest.mark.anyio
 
@@ -19,7 +19,7 @@ def anyio_backend() -> str:
 
 def _contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.update",
         reversibility="irreversible",
         idempotency_key="$args.request_id",

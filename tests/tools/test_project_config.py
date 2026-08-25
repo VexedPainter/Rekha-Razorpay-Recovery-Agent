@@ -69,7 +69,7 @@ def test_fast_gate_has_the_effective_safe_branch_coverage_configuration() -> Non
     fail_under = project_config["tool"]["coverage"]["report"]["fail_under"]
 
     assert _contains_option(addopts, "--cov-branch")
-    assert _contains_option(addopts, "--cov=belay")
+    assert _contains_option(addopts, "--cov=rekha")
     assert _contains_option(addopts, "--cov=recovery")
     assert not _contains_option(addopts, "--no-cov")
 
@@ -109,8 +109,8 @@ def test_ci_test_job_uses_safe_default_and_slow_pytest_gates() -> None:
 
 def test_contains_option_requires_a_standalone_argument() -> None:
     """Coverage options with a matching substring must not satisfy the gate."""
-    assert not _contains_option("--cov-branching --cov=belay", "--cov-branch")
-    assert _contains_option("--cov-branch --cov=belay", "--cov-branch")
+    assert not _contains_option("--cov-branching --cov=rekha", "--cov-branch")
+    assert _contains_option("--cov-branch --cov=rekha", "--cov-branch")
 
 
 def _template_assignments(text: str) -> dict[str, str]:

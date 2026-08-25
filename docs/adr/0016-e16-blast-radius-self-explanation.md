@@ -6,10 +6,10 @@ Estado: aceptado
 ## Contexto
 
 `docs/plan-v2.md`, sección "E16 -- Blast-radius self-explanation returned to
-the agent (not just the human)". Cada señal de gobernanza que Belay ya tiene
+the agent (not just the human)". Cada señal de gobernanza que Rekha ya tiene
 (caps de E4, baseline estadístico de E10, cuota por identidad de E15,
 veredictos de política en general) se explica hoy a un **humano** -- en
-`belay approvals list`, en `belay plan`, en `PolicyResult.reasons` que un
+`rekha approvals list`, en `rekha plan`, en `PolicyResult.reasons` que un
 operador de CLI lee. El **agente** que hizo la llamada solo recibe un
 `pending_approval`/`policy_denied` desnudo, sin ninguna razón legible
 adjunta a la respuesta MCP que de verdad recibe. Eso significa que un agente
@@ -19,7 +19,7 @@ autocorrección hoy exige una ronda completa de pausa-y-espera.
 
 ## Decisiones
 
-- **`belay/policy/explain.py`: `explain(policy_result, plan, contract=None)
+- **`rekha/policy/explain.py`: `explain(policy_result, plan, contract=None)
   -> Explanation` es una función PURA DE FORMATEO.** No reevalúa política, no
   vuelve a leer el ledger, no re-deriva ningún número: solo clasifica y
   plantilla texto que `PolicyEngine.evaluate` (E4/E10/E15) ya calculó en
@@ -57,7 +57,7 @@ autocorrección hoy exige una ronda completa de pausa-y-espera.
     `rule_id` (`"caps[0]"`), nunca un número de umbral en absoluto.
   - Se eligió **no redactar** el número configurado que sí aparece en
     `quota`'s reason, por dos motivos: (1) ese mismo número ya es legible
-    por cualquier humano vía `belay approvals list`/el ledger -- ocultarlo
+    por cualquier humano vía `rekha approvals list`/el ledger -- ocultarlo
     del agente mientras sigue siendo legible por un humano co-ubicado con
     el agente es teatro de seguridad, no una barrera real; (2) el objetivo
     de diseño explícito es autocorrección del agente, que necesita números
@@ -80,7 +80,7 @@ autocorrección hoy exige una ronda completa de pausa-y-espera.
   forma determinística: una `conditions` (contrato `conditional`, spec §4.2)
   o un `sql.params` (E11) cuya expresión referencia `$args.<path>`. Se
   camina el árbol de `Expr` ya parseado por
-  `belay.contracts.expressions.parse` (parseo sintáctico de datos ya
+  `rekha.contracts.expressions.parse` (parseo sintáctico de datos ya
   declarados en el contrato, no una segunda evaluación de política) y se
   toma el primer `$args.<path>` encontrado. Sin contrato, o con un contrato
   sin ningún `$args.<path>` declarado en ninguno de los dos lugares,
@@ -88,11 +88,11 @@ autocorrección hoy exige una ronda completa de pausa-y-espera.
   real reutilizado: `examples/contracts/crm.yaml`'s `crm.bulk_delete` ya
   declara `sql.params.cutoff: "$args.before_year"` (E11); `explain()` lo lee
   tal cual para sugerir `"narrow \`args.before_year\` and re-plan"`.
-- **`belay/proxy/lifecycle.py`: la `Explanation` se adjunta a TODA respuesta
+- **`rekha/proxy/lifecycle.py`: la `Explanation` se adjunta a TODA respuesta
   gobernada, sin tocar la forma existente de ninguna.** `pending_approval`
   gana una clave nueva `"explanation"` en el mismo dict que ya se devolvía;
   `policy_denied`/`approval_rejected`/`approval_expired` ganan
-  `detail["explanation"]` (aditivo sobre `BelayError.to_dict()`, que ya era
+  `detail["explanation"]` (aditivo sobre `RekhaError.to_dict()`, que ya era
   `{"code", "detail", "retryable"}` -- `detail` es un dict libre, agregarle
   una clave no rompe ningún test que solo lea `code`/`retryable` o claves
   específicas de `detail` que ya existían). `allow` es el caso interesante:
@@ -100,11 +100,11 @@ autocorrección hoy exige una ronda completa de pausa-y-espera.
   ejecutor (nunca se toca su forma -- eso rompería contratos de tests
   existentes que aserten sobre el shape exacto del resultado ejecutado), así
   que la `Explanation` del camino `allow` viaja por un canal lateral
-  (`Lifecycle.last_explanation`) que `belay/proxy/server.py` lee después de
+  (`Lifecycle.last_explanation`) que `rekha/proxy/server.py` lee después de
   `await`ear la llamada, únicamente para fusionarla en
   `CallToolResult.structuredContent` -- la única capa donde el diseño pide
-  explícitamente que viva (§ "belay/proxy/server.py" del plan).
-- **`belay/proxy/server.py`: fusión aditiva de `structuredContent`.** Para el
+  explícitamente que viva (§ "rekha/proxy/server.py" del plan).
+- **`rekha/proxy/server.py`: fusión aditiva de `structuredContent`.** Para el
   camino `allow` (el resultado ya es un `CallToolResult` real del upstream),
   se copia su `structuredContent` existente (`dict(result.structuredContent
   or {})`), se le agrega `"explanation"` solo si la clave no existía ya
@@ -124,14 +124,14 @@ sigue pausando exactamente igual que antes de E16; un `deny` sigue negando
 exactamente igual. No existe ningún camino de código donde
 `Explanation`/`suggested_action` influya en `verdict`,
 `requires_approval`, o en si un item de aprobación se crea o resuelve --
-`belay/approvals/queue.py`/`ApprovalStage` no importan `belay.policy.explain`
+`rekha/approvals/queue.py`/`ApprovalStage` no importan `rekha.policy.explain`
 en absoluto. Si `explain()` se borrara del repo por completo, el
 comportamiento de gobernanza (qué se ejecuta, qué se pausa, qué se niega)
 sería exactamente el mismo; lo único que desaparecería es la explicación que
 el agente puede leer sobre una decisión ya tomada. Esa separación es
 deliberada y es la que permite que E16 se aterrice sin tocar
-`belay/policy/engine.py`, `belay/approvals/queue.py`, ni
-`belay/executor/saga.py`.
+`rekha/policy/engine.py`, `rekha/approvals/queue.py`, ni
+`rekha/executor/saga.py`.
 
 ## Garantía de trazabilidad
 
@@ -174,7 +174,7 @@ decirle al agente algo que la evaluación de política real no calculó.
   el agente, binding del aprobador).
 - `docs/adr/0010-e10-anomaly-baselines.md`, `docs/adr/0015-e15-identity-quota.md`
   (de dónde vienen los `reasons` que este ADR solo formatea).
-- Código: `belay/policy/explain.py`, `belay/proxy/lifecycle.py`,
-  `belay/proxy/server.py`.
+- Código: `rekha/policy/explain.py`, `rekha/proxy/lifecycle.py`,
+  `rekha/proxy/server.py`.
 - Tests: `tests/policy/test_explain.py`, `tests/proxy/test_server.py`.
 - Demo: `examples/demo_self_explain.py`.

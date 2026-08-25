@@ -32,7 +32,7 @@ pide el plan).
 ## Convención de marcador elegida
 
 Ya existía una convención parcial: `@spec("9.x")` en el *docstring del
-módulo* de `belay/ledger/model.py`, `store.py`, `verify.py`, `redact.py`,
+módulo* de `rekha/ledger/model.py`, `store.py`, `verify.py`, `redact.py`,
 `replay.py`. El plan, sin embargo, describe marcadores **sobre tests**
 específicos, no sobre módulos de producción. Se extendió la misma sintaxis
 (`@spec("X.Y")` dentro de una cadena, entre comillas dobles) al *docstring
@@ -56,11 +56,11 @@ Un MUST genuinamente **no tenía test**: spec §14 exige "Unknown fields MUST
 be... rejected (contracts, policies)". `tests/contracts/test_model.py`
 prueba el rechazo de campos desconocidos en `Contract`
 (`test_unknown_top_level_field_is_rejected`), pero no existía el equivalente
-para `PolicyDoc` — aunque `belay/policy/model.py` ya usa
+para `PolicyDoc` — aunque `rekha/policy/model.py` ya usa
 `ConfigDict(extra="forbid")`, nadie lo había probado explícitamente. Se
 escribió `tests/policy/test_engine.py::test_unknown_top_level_field_in_policy_doc_is_rejected`,
 que falla si `extra="forbid"` se relaja alguna vez en `PolicyDoc`. No hubo
-que tocar `belay/`: el comportamiento ya era correcto, solo no estaba
+que tocar `rekha/`: el comportamiento ya era correcto, solo no estaba
 verificado por un test con nombre.
 
 ## El script

@@ -1,11 +1,11 @@
-"""`belay plan <tool> --args '<json>'` (plan.md E4 (d))."""
+"""`rekha plan <tool> --args '<json>'` (plan.md E4 (d))."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from belay.cli.main import app
+from rekha.cli.main import app
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _wrap_config(tmp_path: Path) -> Path:
-    out = tmp_path / "belay.wrap.json"
+    out = tmp_path / "rekha.wrap.json"
     result = runner.invoke(
         app,
         [
@@ -23,7 +23,7 @@ def _wrap_config(tmp_path: Path) -> Path:
             "--contracts",
             str(REPO_ROOT / "examples" / "contracts" / "fs.yaml"),
             "--db",
-            str(tmp_path / "belay.db"),
+            str(tmp_path / "rekha.db"),
             "--out",
             str(out),
         ],
@@ -73,7 +73,7 @@ def test_plan_command_applies_a_supplied_policy(tmp_path: Path) -> None:
     config = _wrap_config(tmp_path)
     policy_path = tmp_path / "policy.yaml"
     policy_path.write_text(
-        "belay_policy: '0.1'\ntools:\n  - match: 'fs.delete_*'\n    verdict: deny\n",
+        "rekha_policy: '0.1'\ntools:\n  - match: 'fs.delete_*'\n    verdict: deny\n",
         encoding="utf-8",
     )
     result = runner.invoke(

@@ -7,9 +7,9 @@ failure point ever ran.
 from __future__ import annotations
 
 import pytest
-from belay.contracts.model import Capture, Contract, Effect, Undo
-from belay.executor.saga import STAGES, SagaExecutor
-from belay.ledger.store import LedgerStore
+from rekha.contracts.model import Capture, Contract, Effect, Undo
+from rekha.executor.saga import STAGES, SagaExecutor
+from rekha.ledger.store import LedgerStore
 
 pytestmark = pytest.mark.anyio
 
@@ -21,7 +21,7 @@ def anyio_backend() -> str:
 
 def _contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.update",
         reversibility="reversible",
         capture=Capture(tool="crm.get", args={"id": "$args.id"}, **{"as": "before"}),

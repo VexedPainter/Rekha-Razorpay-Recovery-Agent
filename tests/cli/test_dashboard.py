@@ -1,13 +1,13 @@
-"""belay/cli/dashboard.py: static HTML snapshot rendering."""
+"""rekha/cli/dashboard.py: static HTML snapshot rendering."""
 
 from __future__ import annotations
 
-from belay.cli.dashboard import build_dashboard_data, render_dashboard
-from belay.ledger.store import LedgerStore
+from rekha.cli.dashboard import build_dashboard_data, render_dashboard
+from rekha.ledger.store import LedgerStore
 
 
 def test_build_dashboard_data_summarizes_sessions(tmp_path) -> None:
-    db_path = tmp_path / "belay.db"
+    db_path = tmp_path / "rekha.db"
     ledger = LedgerStore(f"sqlite:///{db_path.as_posix()}")
     ledger.append("s_1", "session_started", {}, initiated_by="agent-bot")
     ledger.append("s_1", "plan_created", {"tool": "fs.write_file"}, step_seq=1)
@@ -19,11 +19,11 @@ def test_build_dashboard_data_summarizes_sessions(tmp_path) -> None:
 
 
 def test_render_dashboard_produces_self_contained_html(tmp_path) -> None:
-    db_path = tmp_path / "belay.db"
+    db_path = tmp_path / "rekha.db"
     ledger = LedgerStore(f"sqlite:///{db_path.as_posix()}")
     ledger.append("s_1", "session_started", {}, initiated_by="agent-bot")
 
     html = render_dashboard(str(db_path))
     assert "<!doctype html>" in html.lower()
     assert "s_1" in html
-    assert "belay/explanation" not in html  # sanity: not leaking unrelated internals
+    assert "rekha/explanation" not in html  # sanity: not leaking unrelated internals

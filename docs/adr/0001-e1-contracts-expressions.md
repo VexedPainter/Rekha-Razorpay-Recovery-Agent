@@ -41,7 +41,7 @@ lenguaje de expresiones".
   modelos (Contract, Undo, Capture, Effect, Provenance, ContractSet), spec
   §14: "la autoridad es estricta" para contratos.
 - **`set_hash` = `sha256:` + SHA-256 de la forma canónica JSON** (ordenada por
-  `tool`, claves ordenadas, sin espacios) usando `belay/canonical.py`
+  `tool`, claves ordenadas, sin espacios) usando `rekha/canonical.py`
   (implementado ahora, antes stub de E0). Estable frente a reordenar claves,
   YAML vs JSON, y orden de ficheros de entrada; cambia ante cualquier byte
   distinto.
@@ -54,5 +54,5 @@ lenguaje de expresiones".
 
 - `docs/spec.md` §4 (contratos), §4.3 (expresiones), Apéndice A (JSON Schema).
 - `docs/plan.md` sección "E1 — Contratos y lenguaje de expresiones (spec §4)".
-- Código: `belay/contracts/{model,loader,expressions}.py`.
+- Código: `rekha/contracts/{model,loader,expressions}.py`.
 - Tests: `tests/contracts/test_{model,loader,expressions}.py`.

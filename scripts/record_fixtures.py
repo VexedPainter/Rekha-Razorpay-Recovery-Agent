@@ -257,7 +257,7 @@ def main() -> int:
     written = 0
     skipped = 0
     failed: list[tuple[int, str]] = []
-    from belay.canonical import canonical_bytes, sha256_hex
+    from rekha.canonical import canonical_bytes, sha256_hex
 
     for start in range(0, len(snapshots), args.batch_size):
         chunk = snapshots[start : start + args.batch_size]

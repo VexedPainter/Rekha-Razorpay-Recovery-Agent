@@ -1,7 +1,7 @@
-"""`belay approvals list/approve/reject` end-to-end (spec §7; plan.md E5 (d)).
+"""`rekha approvals list/approve/reject` end-to-end (spec §7; plan.md E5 (d)).
 
-Exercises the full CLI-driven flow against a real `belay run` subprocess
-over stdio: action paused -> `belay approvals list` shows it -> `approve`
+Exercises the full CLI-driven flow against a real `rekha run` subprocess
+over stdio: action paused -> `rekha approvals list` shows it -> `approve`
 -> the same session's retried call proceeds -> the ledger links everything
 (`verify_chain`/`verify_coherence`, spec §9.2/E2).
 """
@@ -13,9 +13,9 @@ import sys
 from pathlib import Path
 
 import pytest
-from belay.cli.main import app
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from rekha.cli.main import app
 from typer.testing import CliRunner
 
 pytestmark = pytest.mark.anyio
@@ -30,8 +30,8 @@ def anyio_backend() -> str:
 
 
 def _wrap(tmp_path: Path) -> tuple[Path, Path]:
-    db_path = tmp_path / "belay.db"
-    config_path = tmp_path / "belay.wrap.json"
+    db_path = tmp_path / "rekha.db"
+    config_path = tmp_path / "rekha.wrap.json"
     result = runner.invoke(
         app,
         [
@@ -52,7 +52,7 @@ def _wrap(tmp_path: Path) -> tuple[Path, Path]:
 def _pause_write_policy(tmp_path: Path) -> Path:
     policy_path = tmp_path / "policy.yaml"
     policy_path.write_text(
-        "belay_policy: '0.1'\ntools:\n  - match: 'fs.write_file'\n    verdict: pause\n",
+        "rekha_policy: '0.1'\ntools:\n  - match: 'fs.write_file'\n    verdict: pause\n",
         encoding="utf-8",
     )
     return policy_path
@@ -71,7 +71,7 @@ async def test_paused_action_lists_via_cli_then_approve_lets_it_proceed(tmp_path
         command=sys.executable,
         args=[
             "-m",
-            "belay.cli.main",
+            "rekha.cli.main",
             "run",
             "--config",
             str(config_path),
@@ -79,7 +79,7 @@ async def test_paused_action_lists_via_cli_then_approve_lets_it_proceed(tmp_path
             str(policy_path),
         ],
         cwd=str(REPO_ROOT),
-        env={"BELAY_FS_ROOT": str(sandbox)},
+        env={"REKHA_FS_ROOT": str(sandbox)},
     )
 
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
@@ -98,13 +98,13 @@ async def test_paused_action_lists_via_cli_then_approve_lets_it_proceed(tmp_path
         # File must be untouched -- nothing executed yet.
         assert (sandbox / "hello.txt").read_text(encoding="utf-8") == "hi"
 
-        # 2. `belay approvals list` shows the real bound plan (spec §12).
+        # 2. `rekha approvals list` shows the real bound plan (spec §12).
         listed = runner.invoke(app, ["approvals", "list", "--db", str(db_path)])
         assert listed.exit_code == 0, listed.stdout
         assert approval_id in listed.stdout
         assert "fs.write_file" in listed.stdout
 
-        # 3. `belay approvals approve <id>` transitions it (spec §7.1).
+        # 3. `rekha approvals approve <id>` transitions it (spec §7.1).
         approved = runner.invoke(
             app, ["approvals", "approve", approval_id, "--by", "jairo", "--db", str(db_path)]
         )
@@ -139,7 +139,7 @@ async def test_rejected_action_never_proceeds_and_reports_reason(tmp_path: Path)
         command=sys.executable,
         args=[
             "-m",
-            "belay.cli.main",
+            "rekha.cli.main",
             "run",
             "--config",
             str(config_path),
@@ -147,7 +147,7 @@ async def test_rejected_action_never_proceeds_and_reports_reason(tmp_path: Path)
             str(policy_path),
         ],
         cwd=str(REPO_ROOT),
-        env={"BELAY_FS_ROOT": str(sandbox)},
+        env={"REKHA_FS_ROOT": str(sandbox)},
     )
 
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
@@ -186,6 +186,6 @@ async def test_rejected_action_never_proceeds_and_reports_reason(tmp_path: Path)
 
 
 def test_approvals_list_is_empty_message_on_a_fresh_db(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["approvals", "list", "--db", str(tmp_path / "belay.db")])
+    result = runner.invoke(app, ["approvals", "list", "--db", str(tmp_path / "rekha.db")])
     assert result.exit_code == 0
     assert "no approval items" in result.stdout

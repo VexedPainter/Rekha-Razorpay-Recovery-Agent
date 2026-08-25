@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from belay.approvals.queue import ApprovalQueue
-from belay.clock import FixedClock
-from belay.errors import BelayError
+from rekha.approvals.queue import ApprovalQueue
+from rekha.clock import FixedClock
+from rekha.errors import RekhaError
 
 
 def _clock(at: datetime | None = None) -> FixedClock:
@@ -60,7 +60,7 @@ def test_expired_item_is_never_executable_via_approve() -> None:
     item = queue.request("s1", "plan_1", {"tool": "mail.send"}, expiry=timedelta(minutes=1))
 
     clock.set(item.requested_at + timedelta(minutes=2))
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         queue.approve(item.approval_id, approved_by="a")
     assert excinfo.value.code == "approval_expired"
 
@@ -78,7 +78,7 @@ def test_exact_tie_between_approval_and_expiration_expiration_wins() -> None:
 
     # Force "now" to be exactly `expires_at`, the race the spec calls out.
     clock.set(item.expires_at)
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         queue.approve(item.approval_id, approved_by="a")
     assert excinfo.value.code == "approval_expired"
 
@@ -116,7 +116,7 @@ def test_approval_item_is_bound_to_its_plan_id_and_replanning_invalidates_it() -
 
 def test_approve_unknown_approval_id_raises() -> None:
     queue = ApprovalQueue(clock=_clock())
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         queue.approve("ap_does_not_exist", approved_by="a")
     assert excinfo.value.code == "approval_expired"
 
@@ -186,7 +186,7 @@ class TestConsume:
         assert consumed.consumed_policy_hash is None
 
     def test_a_different_event_id_is_refused(self) -> None:
-        from belay.approvals.queue import ApprovalAlreadyConsumed
+        from rekha.approvals.queue import ApprovalAlreadyConsumed
 
         queue = ApprovalQueue(clock=_clock())
         item = queue.request("s1", "plan_1", {"tool": "mail.send"})
@@ -197,7 +197,7 @@ class TestConsume:
             queue.consume(item.approval_id, "event_2")
 
     def test_consuming_a_still_pending_item_is_refused(self) -> None:
-        from belay.approvals.queue import ApprovalNotConsumable
+        from rekha.approvals.queue import ApprovalNotConsumable
 
         queue = ApprovalQueue(clock=_clock())
         item = queue.request("s1", "plan_1", {"tool": "mail.send"})
@@ -205,7 +205,7 @@ class TestConsume:
             queue.consume(item.approval_id, "event_1")
 
     def test_consuming_a_rejected_item_is_refused(self) -> None:
-        from belay.approvals.queue import ApprovalNotConsumable
+        from rekha.approvals.queue import ApprovalNotConsumable
 
         queue = ApprovalQueue(clock=_clock())
         item = queue.request("s1", "plan_1", {"tool": "mail.send"})
@@ -214,7 +214,7 @@ class TestConsume:
             queue.consume(item.approval_id, "event_1")
 
     def test_consuming_an_unknown_approval_id_is_refused(self) -> None:
-        from belay.approvals.queue import ApprovalNotConsumable
+        from rekha.approvals.queue import ApprovalNotConsumable
 
         queue = ApprovalQueue(clock=_clock())
         with pytest.raises(ApprovalNotConsumable):

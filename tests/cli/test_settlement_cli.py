@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from belay.cli.main import app
-from belay.ledger.store import LedgerStore
-from belay.razorpay.webhooks import sign_payload
+from rekha.cli.main import app
+from rekha.ledger.store import LedgerStore
+from rekha.razorpay.webhooks import sign_payload
 from typer.testing import CliRunner
 
 SECRET = "whsec_cli_test"
@@ -28,7 +28,7 @@ runner = CliRunner()
 
 
 def _seeded_db(tmp_path: Path, *, reference: str = "recover-pay_1") -> Path:
-    """A ledger holding one governed recovery, as `belay recover` would leave it."""
+    """A ledger holding one governed recovery, as `rekha recover` would leave it."""
     db = tmp_path / "cli.db"
     ledger = LedgerStore(f"sqlite:///{db}")
     ledger.append("s_cli", "session_started", {"merchant_id": "acme"}, initiated_by="agent")

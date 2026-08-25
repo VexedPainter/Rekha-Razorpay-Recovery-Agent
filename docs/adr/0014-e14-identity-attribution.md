@@ -10,24 +10,24 @@ told the agent to do this". El ledger ya registra `approved_by` (spec §7.2,
 E5) -- quién autorizó un paso que quedó en pausa -- pero nada registraba
 *quién lanzó la sesión del agente en primer lugar*, o *en nombre de quién*.
 En un despliegue con muchos empleados y muchos agentes compartiendo un solo
-Belay, hoy se puede responder "qué pasó y quién aprobó el paso arriesgado"
+Rekha, hoy se puede responder "qué pasó y quién aprobó el paso arriesgado"
 pero no "qué humano produjo esta sesión" -- la cadena de responsabilidad que
 una empresa exige antes de dar agentes a toda una plantilla.
 
 ## Decisiones
 
-- **Belay no autentica a nadie; registra una identidad ya afirmada por el
+- **Rekha no autentica a nadie; registra una identidad ya afirmada por el
   perímetro del despliegue.** El spec (§1) deja fuera de alcance
   "authentication/authorization of agents (gateways do this)" y E14 respeta
   esa frontera al pie de la letra: `initiated_by` es una cadena que el
-  *llamador* (`belay wrap`/`belay run --initiated-by`) declara, no algo que
-  Belay verifica contra ningún directorio, IdP o base de credenciales. Esto
+  *llamador* (`rekha wrap`/`rekha run --initiated-by`) declara, no algo que
+  Rekha verifica contra ningún directorio, IdP o base de credenciales. Esto
   es una frontera de alcance deliberada, no un hueco que dé vergüenza
   admitir: exactamente el mismo patrón que §7.2 ya aplica a `approved_by`
-  ("Belay does not define auth; it defines that anonymous approval is
-  non-conforming"). Un operador real coloca Belay detrás de su propio
+  ("Rekha does not define auth; it defines that anonymous approval is
+  non-conforming"). Un operador real coloca Rekha detrás de su propio
   gateway/IdP (API key con alcance por empleado, claim SSO, cuenta de
-  servicio) y ese perímetro es quien realmente autentica; Belay se limita a
+  servicio) y ese perímetro es quien realmente autentica; Rekha se limita a
   **no dejar pasar una sesión sin que alguien, quien sea, haya declarado una
   identidad** -- lo mismo que ya hacía con `approved_by`, ahora aplicado al
   lado del *iniciador* en vez de solo al del *aprobador*.
@@ -37,7 +37,7 @@ una empresa exige antes de dar agentes a toda una plantilla.
   `TypeError` en tiempo de llamada, no una sesión anónima que se cuela sin
   que nadie lo note. El operador que de verdad quiere una sesión sin
   atribución tiene que escribir el string `"unknown"` explícitamente (así lo
-  hace `belay wrap`/`belay run` cuando ninguna de las dos `--initiated-by`
+  hace `rekha wrap`/`rekha run` cuando ninguna de las dos `--initiated-by`
   se pasa: el fallback es el string literal `"unknown"`, nunca `""` ni
   `None`). Test: `test_start_session_without_initiated_by_is_a_type_error`
   en `tests/proxy/test_identity_attribution.py`.
@@ -52,7 +52,7 @@ una empresa exige antes de dar agentes a toda una plantilla.
 - **Estampado una sola vez en `session_started`, no repetido por evento.**
   El plan permitía dos caminos: repetir la identidad en cada evento de la
   sesión, o fijarla una sola vez en `session_started` y dejar que
-  `belay/ledger/replay.py`'s `SessionState` la exponga para toda la sesión.
+  `rekha/ledger/replay.py`'s `SessionState` la exponga para toda la sesión.
   Se eligió la segunda: `Event.initiated_by`/`on_behalf_of` son campos
   nombrados y tipados en el modelo (promovidos desde `extra="allow"`
   incidental, como pedía el plan), pero `LedgerStore.append` solo los recibe
@@ -75,7 +75,7 @@ una empresa exige antes de dar agentes a toda una plantilla.
   `initiated_by` como un campo "no tipado de verdad", justo lo que el plan
   pedía dejar de hacer).
 - **`approved_by` (E5, §7.2) queda completamente intacto.** E14 es aditivo
-  sobre el lado del *iniciador*; no se tocó `belay/approvals/queue.py`, ni
+  sobre el lado del *iniciador*; no se tocó `rekha/approvals/queue.py`, ni
   su modelo, ni sus tests. Un mismo humano puede aparecer como
   `initiated_by` de su propia sesión y luego, en teoría, como `approved_by`
   de un paso propio -- eso ya lo prohíbe §7.2/§12 (no-self-approval) por
@@ -111,17 +111,17 @@ una empresa exige antes de dar agentes a toda una plantilla.
 ## Brechas conocidas / seguimiento (no resueltas, documentadas honestamente)
 
 - **Ninguna verificación de que `initiated_by` corresponda a una identidad
-  real.** Es el punto central de esta ADR, no un descuido: Belay confía en
-  lo que el llamador de `belay run --initiated-by` le pasa, igual que confía
-  en lo que el llamador de `belay approvals approve --by` le pasa desde E5.
-  Un operador que expone `belay run` sin autenticación propia delante puede
+  real.** Es el punto central de esta ADR, no un descuido: Rekha confía en
+  lo que el llamador de `rekha run --initiated-by` le pasa, igual que confía
+  en lo que el llamador de `rekha approvals approve --by` le pasa desde E5.
+  Un operador que expone `rekha run` sin autenticación propia delante puede
   recibir cualquier string. La responsabilidad de que ese string sea
-  verdad es, explícitamente, del despliegue, no de Belay.
+  verdad es, explícitamente, del despliegue, no de Rekha.
 - **Sin revocación/rotación de identidad dentro de una sesión.** Igual que
   `set_hash` (§4.7), `initiated_by`/`on_behalf_of` quedan fijados al
   arrancar la sesión y no pueden cambiar a media sesión -- si la identidad
   real detrás de una API key cambia de dueño mientras la sesión sigue
-  abierta, Belay no lo detecta (ni lo intenta: está fuera de su modelo,
+  abierta, Rekha no lo detecta (ni lo intenta: está fuera de su modelo,
   sesiones son de un solo escritor, spec §8.3).
 - **E15 (quota por identidad) depende de este campo** tal como anota
   `docs/plan-v2.md`'s sección "Sequencing" -- no se implementa aquí.
@@ -136,13 +136,13 @@ una empresa exige antes de dar agentes a toda una plantilla.
 - `docs/plan-v2.md`, sección "E14".
 - `docs/adr/0013-e13-signed-evidence.md` (mecanismo de firma reusado sin
   duplicar).
-- Código: `belay/ledger/model.py` (`Event.initiated_by`/`on_behalf_of`),
-  `belay/db/models.py` (`EventRow`), `belay/ledger/store.py`
-  (`LedgerStore.append`), `belay/proxy/lifecycle.py`
-  (`Lifecycle.start_session`), `belay/ledger/replay.py` (`SessionState`),
-  `belay/ledger/signing.py` (`_signed_summary`, `_identity_from_events`,
-  `SignedEvidence.model_config`), `belay/proxy/config.py` (`WrapConfig`),
-  `belay/cli/main.py` (`wrap`/`run --initiated-by`/`--on-behalf-of`,
+- Código: `rekha/ledger/model.py` (`Event.initiated_by`/`on_behalf_of`),
+  `rekha/db/models.py` (`EventRow`), `rekha/ledger/store.py`
+  (`LedgerStore.append`), `rekha/proxy/lifecycle.py`
+  (`Lifecycle.start_session`), `rekha/ledger/replay.py` (`SessionState`),
+  `rekha/ledger/signing.py` (`_signed_summary`, `_identity_from_events`,
+  `SignedEvidence.model_config`), `rekha/proxy/config.py` (`WrapConfig`),
+  `rekha/cli/main.py` (`wrap`/`run --initiated-by`/`--on-behalf-of`,
   `verify`/`verify-evidence` output).
 - Tests: `tests/proxy/test_identity_attribution.py`.
 - Demo: `examples/demo_attribution.py`.

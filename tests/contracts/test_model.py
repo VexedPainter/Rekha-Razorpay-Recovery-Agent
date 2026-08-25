@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import pytest
-from belay.contracts.model import Contract, SqlHint
-from belay.errors import BelayError
 from pydantic import ValidationError
+from rekha.contracts.model import Contract, SqlHint
+from rekha.errors import RekhaError
 
 BASE = {
-    "belay_contract": "0.1",
+    "rekha_contract": "0.1",
     "tool": "crm.create_record",
     "reversibility": "reversible",
     "undo": {"tool": "crm.delete_record", "args": {"id": "$result.id"}},
@@ -20,7 +20,7 @@ def test_reversible_without_undo_is_contract_invalid() -> None:
     """@spec("4.2.1") — reversible contracts MUST declare an undo block."""
     doc = {**BASE, "reversibility": "reversible"}
     del doc["undo"]
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         Contract.model_validate(doc)
     assert exc_info.value.code == "contract_invalid"
 
@@ -28,7 +28,7 @@ def test_reversible_without_undo_is_contract_invalid() -> None:
 def test_irreversible_with_undo_is_invalid() -> None:
     """@spec("4.2.2") — irreversible contracts MUST NOT declare an undo block."""
     doc = {**BASE, "reversibility": "irreversible"}
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         Contract.model_validate(doc)
     assert exc_info.value.code == "contract_invalid"
 
@@ -43,14 +43,14 @@ def test_irreversible_without_undo_is_valid() -> None:
 def test_conditional_requires_undo_and_conditions() -> None:
     """@spec("4.2.3") — conditional contracts MUST include undo and conditions."""
     doc = {**BASE, "reversibility": "conditional"}
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         Contract.model_validate(doc)
     assert exc_info.value.code == "contract_invalid"
 
 
 def test_conditional_with_undo_but_no_conditions_is_invalid() -> None:
     doc = {**BASE, "reversibility": "conditional", "undo": BASE["undo"]}
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         Contract.model_validate(doc)
     assert exc_info.value.code == "contract_invalid"
 
@@ -71,7 +71,7 @@ def test_conditional_condition_expressions_must_be_in_grammar() -> None:
         "reversibility": "conditional",
         "conditions": ["__import__('os')"],
     }
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         Contract.model_validate(doc)
     assert exc_info.value.code == "expression_invalid"
 
@@ -153,12 +153,12 @@ def test_malformed_or_unsafe_sql_statement_is_contract_invalid_at_load_time(
     statement: str,
 ) -> None:
     doc = {**BASE, "sql": {"statement": statement}}
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         Contract.model_validate(doc)
     assert exc_info.value.code == "contract_invalid"
 
 
-def test_sql_hint_param_expression_must_be_in_the_belay_grammar() -> None:
+def test_sql_hint_param_expression_must_be_in_the_rekha_grammar() -> None:
     doc = {
         **BASE,
         "sql": {
@@ -166,6 +166,6 @@ def test_sql_hint_param_expression_must_be_in_the_belay_grammar() -> None:
             "params": {"cutoff": "__import__('os')"},
         },
     }
-    with pytest.raises(BelayError) as exc_info:
+    with pytest.raises(RekhaError) as exc_info:
         Contract.model_validate(doc)
     assert exc_info.value.code == "expression_invalid"

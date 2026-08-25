@@ -1,4 +1,4 @@
-"""belay/ledger/test_evidence.py: real command/test execution and outcome recording.
+"""rekha/ledger/test_evidence.py: real command/test execution and outcome recording.
 
 Covers the fix for a second-round review finding: an arbitrary --cmd that
 happens to pass must never be recorded as verifying a specific declared
@@ -9,7 +9,7 @@ from RUNNERS) can produce that.
 from __future__ import annotations
 
 import pytest
-from belay.ledger.test_evidence import run_command, run_declared_test
+from rekha.ledger.test_evidence import run_command, run_declared_test
 
 
 def test_passing_command_recorded_as_passed() -> None:

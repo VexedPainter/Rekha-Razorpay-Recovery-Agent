@@ -186,7 +186,7 @@ def fetch_all_settlements(count: int = 10, skip: int = 0) -> dict[str, Any]:
 def fetch_settlement_recon_details(year: int = 2026, month: int = 8) -> dict[str, Any]:
     """Itemised reconciliation: per-transaction settled amount, fee and tax.
 
-    This is leg 3 of `belay/settlement/verify.py` -- the only source that is not
+    This is leg 3 of `rekha/settlement/verify.py` -- the only source that is not
     derived from our own request. Returns entries only for transactions that
     genuinely settled.
     """
@@ -208,7 +208,7 @@ def _create_link(
     """Shared by both link-creation tools. Idempotent on `reference_id`.
 
     The real API rejects a duplicate `reference_id`; returning the existing link
-    is the behaviour that makes Belay's idempotency guarantee observable end to
+    is the behaviour that makes Rekha's idempotency guarantee observable end to
     end, rather than something only the ledger knows about.
     """
     if reference_id and reference_id in _links_by_reference:

@@ -23,8 +23,8 @@ system would be slower and equally safe.
 
 from __future__ import annotations
 
-from belay.finance.money import Money
-from belay.finance.money import total as sum_money
+from rekha.finance.money import Money
+from rekha.finance.money import total as sum_money
 
 from recovery.proposal import RecoveryPlan, RecoveryProposal
 

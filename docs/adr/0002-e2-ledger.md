@@ -18,14 +18,14 @@ E2 implementa `docs/spec.md` §9 (The ledger), según `docs/plan.md` sección
 - **Cadena de hashes partida por sesión, literal a §9.2.** `hash =
   SHA-256(canonical(event sin hash) || prev_hash)`: se serializa el envelope
   completo (incluyendo su propio `prev_hash`) en forma canónica
-  (`belay/canonical.py`, ya congelada en E0/E1) y se concatena `prev_hash` en
+  (`rekha/canonical.py`, ya congelada en E0/E1) y se concatena `prev_hash` en
   bruto antes de hashear, tal como dice la spec, aunque `prev_hash` ya forme
   parte del envelope serializado. El primer evento de cada `session_id`
   encadena desde un `GENESIS_HASH` centinela (`"0" * 64`), no desde cadena
   vacía, para que "sin evento previo" sea un valor explícito y comparable.
 - **`verify_chain` recibe una lista de eventos, no abre la base.** Permite
   verificar subconjuntos (una sesión) o el histórico completo
-  (`LedgerStore.read_all()`, añadido sobre la firma del plan porque `belay
+  (`LedgerStore.read_all()`, añadido sobre la firma del plan porque `rekha
   verify <db>` necesita "toda la base", no una sesión) con la misma función.
   Reporta el primer índice y `event_id` cuya cadena o hash no cuadre — el
   test de conformidad obligatorio (corromper el evento *k* → fallo en *k*)
@@ -59,8 +59,8 @@ E2 implementa `docs/spec.md` §9 (The ledger), según `docs/plan.md` sección
 
 - `docs/spec.md` §9 (ledger), §14 (versionado y tolerancia).
 - `docs/plan.md` sección "E2 — Ledger (spec §9)".
-- Código: `belay/ledger/{model,store,verify,replay,redact}.py`,
-  `belay/db/models.py`, `belay/db/migrations/versions/0001_events.py`,
-  `belay/cli/main.py` (`belay verify`).
+- Código: `rekha/ledger/{model,store,verify,replay,redact}.py`,
+  `rekha/db/models.py`, `rekha/db/migrations/versions/0001_events.py`,
+  `rekha/cli/main.py` (`rekha verify`).
 - Tests: `tests/ledger/test_{store,verify,replay,redact,unknown_fields}.py`,
   `tests/cli/test_verify.py`.

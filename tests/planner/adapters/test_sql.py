@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from belay.planner.adapters.sql import make_sql_runner, simulate_row_count
+from rekha.planner.adapters.sql import make_sql_runner, simulate_row_count
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 

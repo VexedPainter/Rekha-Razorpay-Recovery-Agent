@@ -112,12 +112,12 @@ MUSTS: list[Must] = [
     Must(
         "7.2.2",
         "7.2",
-        "An agent MUST NOT be able to approve its own actions through any tool Belay exposes.",
+        "An agent MUST NOT be able to approve its own actions through any tool Rekha exposes.",
     ),
     Must(
         "8.1",
         "8.1",
-        "On recovery, Belay MUST reconcile a journaled-but-unresolved step via "
+        "On recovery, Rekha MUST reconcile a journaled-but-unresolved step via "
         "the idempotency key, or mark it `indeterminate`.",
     ),
     Must(

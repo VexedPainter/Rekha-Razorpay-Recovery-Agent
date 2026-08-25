@@ -10,7 +10,7 @@ offline-verifiable evidence". El hash chain del ledger (E2, spec §9.2)
 prueba consistencia interna -- que ningún evento fue alterado o reordenado
 -- pero solo para quien confía en quien presenta la cadena y tiene acceso
 para recomputarla. E13 añade una firma Ed25519 sobre esa misma cadena para
-que un tercero, sin acceso a la base de Belay y sin relación de confianza
+que un tercero, sin acceso a la base de Rekha y sin relación de confianza
 con el operador, pueda verificar de forma independiente que una secuencia
 exacta de eventos ocurrió y no fue alterada desde su exportación.
 
@@ -24,9 +24,9 @@ exacta de eventos ocurrió y no fue alterada desde su exportación.
   requiere red para emitir *y* para verificar contra el log; X.509
   tradicional requiere una CA (propia u operada por terceros) y gestión de
   revocación (CRL/OCSP, de nuevo red). Ed25519 con una clave que el operador
-  genera y controla (`belay keygen`) no depende de nada externo: la
+  genera y controla (`rekha keygen`) no depende de nada externo: la
   verificación solo necesita el fichero exportado y la clave pública, cero
-  red, cero base de datos, cero llamada a Belay -- literalmente lo que pide
+  red, cero base de datos, cero llamada a Rekha -- literalmente lo que pide
   el criterio de salida. **Camino de mejora explícito, no descartado:**
   cuando el operador sí quiera identidad verificable de terceros (no solo
   "esta clave firmó esto") sigstore/X.509 encajan *encima* de este mismo
@@ -80,9 +80,9 @@ exacta de eventos ocurrió y no fue alterada desde su exportación.
   precisión que el plan exige.
   Tests: `tests/ledger/test_signing.py::test_tamper_{a,b,c,d}_*`, cada uno
   su propio `stage`.
-- **`SigningKey` nunca toca `belay/ledger/store.py` ni la tabla `events`.**
+- **`SigningKey` nunca toca `rekha/ledger/store.py` ni la tabla `events`.**
   Persistida solo como fichero PKCS8 PEM sin cifrar, en una ruta que el
-  operador controla (`belay keygen <path>`); cifrar ese fichero en reposo,
+  operador controla (`rekha keygen <path>`); cifrar ese fichero en reposo,
   o guardarlo en un HSM/keychain del SO, es responsabilidad del operador,
   fuera de alcance de v1 (ver brecha de gestión de claves abajo).
   Test explícito: `test_private_key_never_appears_in_the_exported_evidence_bytes`
@@ -104,7 +104,7 @@ exacta de eventos ocurrió y no fue alterada desde su exportación.
 
 ## Brechas conocidas / seguimiento (no resueltas, documentadas honestamente)
 
-- **Sin rotación ni revocación de claves en v1.** Belay genera y usa claves
+- **Sin rotación ni revocación de claves en v1.** Rekha genera y usa claves
   Ed25519, pero no hay ningún mecanismo para que un verificador sepa que
   una clave fue comprometida o retirada -- ni una lista de revocación, ni
   expiración, ni versión de clave en el propio bundle más allá de
@@ -115,7 +115,7 @@ exacta de eventos ocurrió y no fue alterada desde su exportación.
   (p. ej. un `key_id`/`valid_from`/`valid_until` en el bundle, o adoptar
   sigstore/sus logs de transparencia cuando la dependencia de red deje de
   ser un problema para el caso de uso).
-- **Sin cifrado en reposo del fichero de clave privada.** `belay keygen`
+- **Sin cifrado en reposo del fichero de clave privada.** `rekha keygen`
   escribe PKCS8 PEM sin cifrar; proteger ese fichero (permisos de sistema
   de archivos, HSM, keychain del SO) es responsabilidad exclusiva del
   operador en v1.
@@ -130,7 +130,7 @@ exacta de eventos ocurrió y no fue alterada desde su exportación.
 
 - `docs/spec.md` §9 (ledger), `docs/plan-v2.md` sección "E13".
 - `docs/adr/0002-e2-ledger.md` (hash chain reusado, no duplicado).
-- Código: `belay/ledger/signing.py`, `belay/cli/main.py` (`keygen`,
+- Código: `rekha/ledger/signing.py`, `rekha/cli/main.py` (`keygen`,
   `verify-export`, `verify-evidence`).
 - Tests: `tests/ledger/test_signing.py`, `tests/cli/test_verify_evidence.py`.
 - Demo: `examples/demo_signed_evidence.py`.

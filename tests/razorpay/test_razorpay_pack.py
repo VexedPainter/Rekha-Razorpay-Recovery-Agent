@@ -24,17 +24,17 @@ from typing import Any
 
 import pytest
 import yaml
-from belay.contracts.loader import load_contract_set
-from belay.contracts.model import ContractSet
-from belay.errors import BelayError
-from belay.finance.mandate import load_mandate
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.ledger.verify import verify_chain, verify_coherence
-from belay.policy.model import load_policy
-from belay.proxy.lifecycle import Lifecycle
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from rekha.contracts.loader import load_contract_set
+from rekha.contracts.model import ContractSet
+from rekha.errors import RekhaError
+from rekha.finance.mandate import load_mandate
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.ledger.verify import verify_chain, verify_coherence
+from rekha.policy.model import load_policy
+from rekha.proxy.lifecycle import Lifecycle
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACK = REPO_ROOT / "packs" / "razorpay" / "contracts.yaml"
@@ -242,7 +242,7 @@ def _lifecycle(ledger: LedgerStore, session_id: str, *, permissive: bool) -> Lif
     """`permissive` swaps the real policy for one that allows, so a test can
     isolate contract/saga behaviour from the approval flow that the real policy
     (correctly) imposes on every irreversible money-moving action."""
-    from belay.policy.model import PolicyDoc, ToolRule
+    from rekha.policy.model import PolicyDoc, ToolRule
 
     policy = (
         PolicyDoc(tools=[ToolRule(match="*", verdict="allow")])
@@ -405,7 +405,7 @@ async def test_a_sandbox_only_tool_is_refused_as_contract_missing() -> None:
         lifecycle = _lifecycle(ledger, "s_pack_deny", permissive=True)
         lifecycle.start_session("recovery-agent")
 
-        with pytest.raises(BelayError) as excinfo:
+        with pytest.raises(RekhaError) as excinfo:
             await lifecycle.govern_and_execute(
                 "sandbox_inject_unauthorized_settlement",
                 {"amount": 5000000},
@@ -509,7 +509,7 @@ async def test_over_the_operator_policy_cap_is_denied_outright() -> None:
     operator's policy is an independent backstop that holds even if a mandate
     were written too permissively. Two locks, different keyholders.
     """
-    from belay.finance.mandate import MerchantMandate
+    from rekha.finance.mandate import MerchantMandate
 
     params = StdioServerParameters(command=sys.executable, args=[str(SANDBOX)])
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
@@ -538,7 +538,7 @@ async def test_over_the_operator_policy_cap_is_denied_outright() -> None:
         )
         lifecycle.start_session("recovery-agent")
 
-        with pytest.raises(BelayError) as excinfo:
+        with pytest.raises(RekhaError) as excinfo:
             await lifecycle.govern_and_execute(
                 "create_payment_link",
                 {

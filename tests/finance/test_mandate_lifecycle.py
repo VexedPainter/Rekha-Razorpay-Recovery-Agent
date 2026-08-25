@@ -14,19 +14,19 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from belay.contracts.model import Contract, ContractSet
-from belay.errors import BelayError
-from belay.finance.mandate import MerchantMandate
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.policy.model import PolicyDoc, ToolRule
-from belay.proxy.lifecycle import Lifecycle
+from rekha.contracts.model import Contract, ContractSet
+from rekha.errors import RekhaError
+from rekha.finance.mandate import MerchantMandate
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.policy.model import PolicyDoc, ToolRule
+from rekha.proxy.lifecycle import Lifecycle
 
 
 def _contract(tool: str, effect_type: str = "spend") -> Contract:
     return Contract.model_validate(
         {
-            "belay_contract": "0.1",
+            "rekha_contract": "0.1",
             "tool": tool,
             "reversibility": "irreversible",
             "effects": [{"type": effect_type, "resource": "razorpay.payment", "count": "1"}],
@@ -128,7 +128,7 @@ async def test_a_forbidden_action_never_reaches_the_upstream() -> None:
     lifecycle = _lifecycle(ledger, _mandate())
     lifecycle.start_session("recovery-agent")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "create_refund",
             {"amount": 5000000, "currency": "INR"},
@@ -148,7 +148,7 @@ async def test_over_the_per_action_ceiling_never_reaches_the_upstream() -> None:
     lifecycle = _lifecycle(ledger, _mandate())
     lifecycle.start_session("recovery-agent")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "create_payment_link",
             {"amount": 500001, "currency": "INR", "method": "upi"},
@@ -167,7 +167,7 @@ async def test_an_action_absent_from_the_allow_list_is_refused() -> None:
     lifecycle = _lifecycle(ledger, _mandate())
     lifecycle.start_session("recovery-agent")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "capture_payment", {"amount": 100}, read_only_hint=False, executor=upstream
         )
@@ -182,7 +182,7 @@ async def test_a_disallowed_method_is_refused() -> None:
     lifecycle = _lifecycle(ledger, _mandate())
     lifecycle.start_session("recovery-agent")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "create_payment_link",
             {"amount": 100000, "currency": "INR", "method": "paylater"},
@@ -200,7 +200,7 @@ async def test_a_foreign_currency_is_refused() -> None:
     lifecycle = _lifecycle(ledger, _mandate())
     lifecycle.start_session("recovery-agent")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "create_payment_link",
             {"amount": 10000, "currency": "USD", "method": "upi"},
@@ -234,7 +234,7 @@ async def test_the_mandate_is_checked_before_contract_resolution() -> None:
     )
     lifecycle.start_session("recovery-agent")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "create_refund", {"amount": 100}, read_only_hint=False, executor=upstream
         )
@@ -267,7 +267,7 @@ async def test_a_refusal_is_recorded_in_the_ledger_with_the_violated_field() -> 
     lifecycle = _lifecycle(ledger, mandate)
     lifecycle.start_session("recovery-agent")
 
-    with pytest.raises(BelayError):
+    with pytest.raises(RekhaError):
         await lifecycle.govern_and_execute(
             "create_refund", {"amount": 5000000}, read_only_hint=False, executor=upstream
         )
@@ -281,13 +281,13 @@ async def test_a_refusal_is_recorded_in_the_ledger_with_the_violated_field() -> 
 
 @pytest.mark.anyio
 async def test_the_chain_still_verifies_after_a_refusal() -> None:
-    from belay.ledger.verify import verify_chain, verify_coherence
+    from rekha.ledger.verify import verify_chain, verify_coherence
 
     ledger = LedgerStore()
     upstream = _RecordingUpstream()
     lifecycle = _lifecycle(ledger, _mandate())
     lifecycle.start_session("recovery-agent")
-    with pytest.raises(BelayError):
+    with pytest.raises(RekhaError):
         await lifecycle.govern_and_execute(
             "create_refund", {"amount": 1}, read_only_hint=False, executor=upstream
         )
@@ -329,7 +329,7 @@ async def test_without_a_describer_the_mandate_still_enforces_action_names() -> 
     lifecycle = _lifecycle(ledger, _mandate(), describe=False)
     lifecycle.start_session("recovery-agent")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "create_refund", {"amount": 5000000}, read_only_hint=False, executor=upstream
         )
@@ -364,7 +364,7 @@ async def test_a_describer_that_raises_refuses_the_action() -> None:
     )
     lifecycle.start_session("recovery-agent")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "create_payment_link", {"amount": "???"}, read_only_hint=False, executor=upstream
         )

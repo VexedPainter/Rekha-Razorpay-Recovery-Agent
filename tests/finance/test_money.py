@@ -1,4 +1,4 @@
-"""`belay/finance/money.py` -- exact monetary amounts.
+"""`rekha/finance/money.py` -- exact monetary amounts.
 
 The tests that matter most here are the ones proving `Money` *refuses* things:
 a float, excess precision, a cross-currency sum. Money that silently accepts
@@ -11,10 +11,10 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-from belay.errors import BelayError
-from belay.finance.money import Money, minor_unit_exponent, total
 from hypothesis import given
 from hypothesis import strategies as st
+from rekha.errors import RekhaError
+from rekha.finance.money import Money, minor_unit_exponent, total
 
 # ---------------------------------------------------------------- construction
 
@@ -69,7 +69,7 @@ def test_zero_is_typed() -> None:
 
 
 def test_a_float_is_refused_outright() -> None:
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         Money.from_major(0.1, "INR")
     assert excinfo.value.code == "money_invalid"
     assert "float" in excinfo.value.detail["reason"]
@@ -77,40 +77,40 @@ def test_a_float_is_refused_outright() -> None:
 
 def test_excess_precision_is_refused_not_rounded() -> None:
     """`10.005` INR is ambiguous between 1000 and 1001 paise. Refuse, never guess."""
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         Money.from_major("10.005", "INR")
     assert excinfo.value.code == "money_invalid"
     assert "precision" in excinfo.value.detail["reason"]
 
 
 def test_a_non_numeric_amount_is_refused() -> None:
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         Money.from_major("not-a-number", "INR")
     assert excinfo.value.code == "money_invalid"
 
 
 @pytest.mark.parametrize("bad", ["nan", "inf", "-inf"])
 def test_non_finite_amounts_are_refused(bad: str) -> None:
-    with pytest.raises(BelayError):
+    with pytest.raises(RekhaError):
         Money.from_major(bad, "INR")
 
 
 @pytest.mark.parametrize("bad", ["RUPEE", "IN", "", "1NR", "in r"])
 def test_a_malformed_currency_is_refused(bad: str) -> None:
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         Money(minor_units=1, currency=bad)
     assert excinfo.value.code == "money_invalid"
 
 
 def test_giving_both_major_and_minor_units_is_refused() -> None:
     """Two sources of truth for one amount is a bug in the caller, not an input."""
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         Money.model_validate({"major": "1.00", "minor_units": 100, "currency": "INR"})
     assert excinfo.value.code == "money_invalid"
 
 
 def test_major_without_currency_is_refused() -> None:
-    with pytest.raises(BelayError):
+    with pytest.raises(RekhaError):
         Money.model_validate({"major": "1.00"})
 
 
@@ -178,7 +178,7 @@ def test_cross_currency_arithmetic_raises() -> None:
     inr = Money(minor_units=100, currency="INR")
     usd = Money(minor_units=100, currency="USD")
     for op in (lambda: inr + usd, lambda: inr - usd, lambda: inr < usd):
-        with pytest.raises(BelayError) as excinfo:
+        with pytest.raises(RekhaError) as excinfo:
             op()
         assert excinfo.value.code == "currency_mismatch"
 
@@ -222,7 +222,7 @@ def test_total_sums_a_list_and_types_the_empty_case() -> None:
 
 
 def test_total_raises_on_a_mixed_currency_list() -> None:
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         total(
             [Money(minor_units=1, currency="INR"), Money(minor_units=1, currency="USD")],
             currency="INR",

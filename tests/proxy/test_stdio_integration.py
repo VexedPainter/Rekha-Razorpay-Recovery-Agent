@@ -1,7 +1,7 @@
-"""End-to-end integration: a real MCP SDK client talks to Belay, which talks
+"""End-to-end integration: a real MCP SDK client talks to Rekha, which talks
 to `examples/fs-server`, entirely over stdio (plan.md E3 required test).
 
-Two real stdio hops: `stdio_client` -> `belay run` subprocess (agent-facing
+Two real stdio hops: `stdio_client` -> `rekha run` subprocess (agent-facing
 MCP server) -> its own `connect_stdio` -> `examples/fs-server` subprocess
 (upstream). This is the slowest test in the suite (two Python subprocess
 starts); see docs/adr/0003-e3-proxy-l1.md for the tradeoff note.
@@ -27,9 +27,9 @@ def anyio_backend() -> str:
 
 
 @pytest.mark.slow
-async def test_real_client_belay_fs_server_over_stdio(tmp_path: Path) -> None:
-    from belay.contracts.loader import load_contract_set
-    from belay.proxy.config import UpstreamCommand, WrapConfig
+async def test_real_client_rekha_fs_server_over_stdio(tmp_path: Path) -> None:
+    from rekha.contracts.loader import load_contract_set
+    from rekha.proxy.config import UpstreamCommand, WrapConfig
 
     sandbox = tmp_path / "sandbox"
     sandbox.mkdir()
@@ -38,7 +38,7 @@ async def test_real_client_belay_fs_server_over_stdio(tmp_path: Path) -> None:
     contracts_path = REPO_ROOT / "examples" / "contracts" / "fs.yaml"
     load_contract_set([str(contracts_path)])  # fail fast if the fixture contract is broken
 
-    db_path = tmp_path / "belay.db"
+    db_path = tmp_path / "rekha.db"
     config = WrapConfig(
         upstream=UpstreamCommand(
             command=sys.executable,
@@ -48,14 +48,14 @@ async def test_real_client_belay_fs_server_over_stdio(tmp_path: Path) -> None:
         unsafe_passthrough=[],
         db=str(db_path),
     )
-    config_path = tmp_path / "belay.wrap.json"
+    config_path = tmp_path / "rekha.wrap.json"
     config.save(config_path)
 
     params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "belay.cli.main", "run", "--config", str(config_path)],
+        args=["-m", "rekha.cli.main", "run", "--config", str(config_path)],
         cwd=str(REPO_ROOT),
-        env={"BELAY_FS_ROOT": str(sandbox)},
+        env={"REKHA_FS_ROOT": str(sandbox)},
     )
 
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
@@ -90,7 +90,7 @@ async def test_real_client_belay_fs_server_over_stdio(tmp_path: Path) -> None:
 async def test_undeclared_destructive_tool_is_refused_over_real_stdio(tmp_path: Path) -> None:
     """A tool with `destructiveHint` and no contract stays refused end-to-end."""
     import yaml
-    from belay.proxy.config import UpstreamCommand, WrapConfig
+    from rekha.proxy.config import UpstreamCommand, WrapConfig
 
     sandbox = tmp_path / "sandbox"
     sandbox.mkdir()
@@ -101,7 +101,7 @@ async def test_undeclared_destructive_tool_is_refused_over_real_stdio(tmp_path: 
     minimal_contracts.write_text(
         yaml.safe_dump(
             {
-                "belay_contract": "0.1",
+                "rekha_contract": "0.1",
                 "tool": "fs.read_file",
                 "reversibility": "irreversible",
                 "effects": [{"type": "read", "resource": "fs.file"}],
@@ -117,16 +117,16 @@ async def test_undeclared_destructive_tool_is_refused_over_real_stdio(tmp_path: 
         ),
         contracts=[str(minimal_contracts)],
         unsafe_passthrough=[],
-        db=str(tmp_path / "belay.db"),
+        db=str(tmp_path / "rekha.db"),
     )
-    config_path = tmp_path / "belay.wrap.json"
+    config_path = tmp_path / "rekha.wrap.json"
     config.save(config_path)
 
     params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "belay.cli.main", "run", "--config", str(config_path)],
+        args=["-m", "rekha.cli.main", "run", "--config", str(config_path)],
         cwd=str(REPO_ROOT),
-        env={"BELAY_FS_ROOT": str(sandbox)},
+        env={"REKHA_FS_ROOT": str(sandbox)},
     )
 
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:

@@ -12,11 +12,11 @@
 
 ## File structure
 
-- Create `belay/db/lifecycle.py`: ownership-aware engine lease with explicit and finalizer-backed disposal.
+- Create `rekha/db/lifecycle.py`: ownership-aware engine lease with explicit and finalizer-backed disposal.
 - Create `tests/db/test_lifecycle.py`: focused ownership, idempotent-close, and ResourceWarning regressions.
 - Create `docs/adr/0027-e21-release-truth.md`: immutable `v0.1.0` history and measured alpha criteria.
-- Modify `belay/approvals/queue.py`, `belay/executor/idempotency.py`, `belay/ledger/store.py`: adopt the lifecycle API.
-- Modify `belay/supervisor/server.py`, `belay/cli/main.py`: dispose shared/direct engines at process and command boundaries.
+- Modify `rekha/approvals/queue.py`, `rekha/executor/idempotency.py`, `rekha/ledger/store.py`: adopt the lifecycle API.
+- Modify `rekha/supervisor/server.py`, `rekha/cli/main.py`: dispose shared/direct engines at process and command boundaries.
 - Modify engine-producing test helpers in `tests/hooks/`, `tests/planner/`, and `tests/supervisor/`: yield and dispose borrowed engines.
 - Modify `tests/tools/test_install_scripts.py`: validate Bash syntax through stdin.
 - Modify `pyproject.toml`, `.github/workflows/ci.yaml`: branch coverage and the 81% non-decreasing floor.
@@ -89,11 +89,11 @@ git commit -m "test: validate install script through bash stdin"
 ### Task 3: Add an ownership-aware engine lifecycle
 
 **Files:**
-- Create: `belay/db/lifecycle.py`
+- Create: `rekha/db/lifecycle.py`
 - Create: `tests/db/test_lifecycle.py`
-- Modify: `belay/approvals/queue.py`
-- Modify: `belay/executor/idempotency.py`
-- Modify: `belay/ledger/store.py`
+- Modify: `rekha/approvals/queue.py`
+- Modify: `rekha/executor/idempotency.py`
+- Modify: `rekha/ledger/store.py`
 
 - [ ] **Step 1: Write failing lifecycle tests**
 
@@ -113,7 +113,7 @@ def test_borrowed_engine_is_not_disposed() -> None:
 
 Run: `py -3.13 -m pytest tests/db/test_lifecycle.py -q --no-cov`
 
-Expected: FAIL because `belay.db.lifecycle.EngineLease` does not exist.
+Expected: FAIL because `rekha.db.lifecycle.EngineLease` does not exist.
 
 - [ ] **Step 3: Implement `EngineLease`**
 
@@ -132,15 +132,15 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add belay/db/lifecycle.py belay/approvals/queue.py belay/executor/idempotency.py belay/ledger/store.py tests/db/test_lifecycle.py
+git add rekha/db/lifecycle.py rekha/approvals/queue.py rekha/executor/idempotency.py rekha/ledger/store.py tests/db/test_lifecycle.py
 git commit -m "fix: manage owned SQLAlchemy engines"
 ```
 
 ### Task 4: Close shared engines at application and fixture boundaries
 
 **Files:**
-- Modify: `belay/supervisor/server.py`
-- Modify: `belay/cli/main.py`
+- Modify: `rekha/supervisor/server.py`
+- Modify: `rekha/cli/main.py`
 - Modify: `tests/hooks/test_codex_adapter.py`
 - Modify: `tests/hooks/test_file_snapshot.py`
 - Modify: `tests/hooks/test_gate.py`
@@ -180,7 +180,7 @@ Expected: all non-live tests pass with no unclosed-SQLite warning. Do not add a 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add belay/supervisor/server.py belay/cli/main.py tests/hooks tests/planner tests/supervisor
+git add rekha/supervisor/server.py rekha/cli/main.py tests/hooks tests/planner tests/supervisor
 git commit -m "fix: dispose shared SQLite engines"
 ```
 
@@ -263,7 +263,7 @@ git commit -m "docs: align public alpha status"
 
 - [ ] **Step 1: Run static gates**
 
-Run: `ruff check . && mypy belay`
+Run: `ruff check . && mypy rekha`
 
 Expected: both pass.
 
@@ -275,7 +275,7 @@ Expected: both pass; branch coverage ≥81%; no unclosed SQLite warning.
 
 - [ ] **Step 3: Run protocol evidence gates**
 
-Run: `py -3.13 scripts/traceability.py --check && py -3.13 -m conformance.cli run --target belay --level 3`
+Run: `py -3.13 scripts/traceability.py --check && py -3.13 -m conformance.cli run --target rekha --level 3`
 
 Expected: all MUSTs covered and L3 passes.
 

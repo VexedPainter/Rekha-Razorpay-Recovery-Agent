@@ -1,18 +1,18 @@
-"""`belay verify <db>` against a real SQLite database (plan.md E2 (d))."""
+"""`rekha verify <db>` against a real SQLite database (plan.md E2 (d))."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from belay.cli.main import app
-from belay.ledger.store import LedgerStore
+from rekha.cli.main import app
+from rekha.ledger.store import LedgerStore
 from typer.testing import CliRunner
 
 runner = CliRunner()
 
 
 def test_verify_ok_on_a_healthy_ledger(tmp_path: Path) -> None:
-    db_path = tmp_path / "belay.db"
+    db_path = tmp_path / "rekha.db"
     store = LedgerStore(f"sqlite:///{db_path.as_posix()}")
     store.append("s1", "step_journaled", {}, step_seq=1)
     store.append("s1", "result_recorded", {}, step_seq=1)
@@ -29,7 +29,7 @@ def test_verify_ok_on_a_healthy_ledger(tmp_path: Path) -> None:
 def test_verify_fails_on_a_tampered_ledger(tmp_path: Path) -> None:
     import sqlite3
 
-    db_path = tmp_path / "belay.db"
+    db_path = tmp_path / "rekha.db"
     store = LedgerStore(f"sqlite:///{db_path.as_posix()}")
     store.append("s1", "step_journaled", {"a": 1}, step_seq=1)
     store.append("s1", "step_committed", {}, step_seq=1)

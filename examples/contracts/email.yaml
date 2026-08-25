@@ -1,4 +1,4 @@
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: email.send
 summary: Sends an email to one or more recipients
 reversibility: irreversible

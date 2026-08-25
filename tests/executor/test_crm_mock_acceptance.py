@@ -12,10 +12,10 @@ import sys
 from pathlib import Path
 
 import pytest
-from belay.contracts.model import Capture, Contract, Effect, Undo
-from belay.executor.saga import SagaExecutor, SagaStep
-from belay.ledger.store import LedgerStore
-from belay.proxy.upstream import connect_stdio
+from rekha.contracts.model import Capture, Contract, Effect, Undo
+from rekha.executor.saga import SagaExecutor, SagaStep
+from rekha.ledger.store import LedgerStore
+from rekha.proxy.upstream import connect_stdio
 
 pytestmark = pytest.mark.anyio
 
@@ -29,7 +29,7 @@ def anyio_backend() -> str:
 
 def _update_contract(tool: str) -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool=tool,
         reversibility="reversible",
         capture=Capture(tool="crm.get", args={"id": "$args.id"}, **{"as": "before"}),

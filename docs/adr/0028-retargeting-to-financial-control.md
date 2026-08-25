@@ -1,4 +1,4 @@
-# ADR 0028: retargeting Belay from tool safety to financial control
+# ADR 0028: retargeting Rekha from tool safety to financial control
 
 - **Status:** accepted
 - **Date:** 2026-08-25
@@ -6,7 +6,7 @@
 
 ## Context
 
-Belay was built as a transactional safety layer for AI agent tool calls: an
+Rekha was built as a transactional safety layer for AI agent tool calls: an
 MCP proxy plus a Native Agent Gate, governing filesystem and shell actions
 with contracts, dry-run planning, policy, approvals, saga execution, rewind,
 and a hash-chained ledger. At `ed7fdf1` it was 31,896 lines of Python, L3
@@ -34,7 +34,7 @@ rather than building new machinery:
   once.
 - `LedgerStore` plus `SignedEvidence` already produce offline-verifiable,
   tamper-evident provenance.
-- `belay/proxy/upstream.py` already launches an arbitrary stdio MCP
+- `rekha/proxy/upstream.py` already launches an arbitrary stdio MCP
   subprocess via the official SDK, and the official
   `razorpay/razorpay-mcp-server` is an MIT-licensed stdio server -- so
   Razorpay can be wrapped with no new transport code at all.
@@ -42,7 +42,7 @@ rather than building new machinery:
 Three gaps were found that are genuine engineering rather than plumbing, and
 they define the work ahead:
 
-1. `Cap.per: session` is declared in `belay/policy/model.py` and **never read
+1. `Cap.per: session` is declared in `rekha/policy/model.py` and **never read
    by `PolicyEngine`**. Cumulative limits therefore do not exist. Per-call
    caps alone do not bound an agent: forty payment links of Rs 4,000 each
    pass a Rs 5,000 per-action cap while breaching a Rs 50,000 daily budget.
@@ -51,13 +51,13 @@ they define the work ahead:
    correctness bug.
 3. There is no webhook ingestion, no settlement data, and no verification of
    actual financial outcome. `grep` finds zero occurrences of `webhook`,
-   `settlement`, or `razorpay` under `belay/`.
+   `settlement`, or `razorpay` under `rekha/`.
 
 Meanwhile roughly two thirds of the codebase served the old domain
 exclusively: the Claude Code / Codex / OpenCode Native Agent Gate
-(`belay/hooks/`, 1,982 LOC), the authenticated IPC supervisor that existed
-only to serve it (`belay/supervisor/`, 1,339 LOC), the editor onboarding and
-client-registration surface (`belay/cli/connection*`, `client_*`,
+(`rekha/hooks/`, 1,982 LOC), the authenticated IPC supervisor that existed
+only to serve it (`rekha/supervisor/`, 1,339 LOC), the editor onboarding and
+client-registration surface (`rekha/cli/connection*`, `client_*`,
 `host_detection`, `agent_instructions`), coding-agent session tooling
 (`export_pr`, `explore`, `causal`, `learn`), and the distribution machinery
 (`npm/`, PyInstaller binaries, signed release bundles, install scripts).
@@ -67,44 +67,44 @@ client-registration surface (`belay/cli/connection*`, `client_*`,
 Delete the code that serves only the retired domain, and scaffold the five
 packages the new one needs.
 
-**Deleted** (source plus tests): `belay/hooks/`, `belay/supervisor/`,
-`belay/cli/{connection,connection_models,client_registration,client_configs,host_detection,agent_instructions,export_pr,explore,causal}.py`,
-`belay/action_envelope.py`, `belay/bundled_packs.py`, `belay/packs/`,
+**Deleted** (source plus tests): `rekha/hooks/`, `rekha/supervisor/`,
+`rekha/cli/{connection,connection_models,client_registration,client_configs,host_detection,agent_instructions,export_pr,explore,causal}.py`,
+`rekha/action_envelope.py`, `rekha/bundled_packs.py`, `rekha/packs/`,
 `packs/{filesystem,git,claude-code-native}/`, `npm/`,
 `scripts/{build_binary,install.ps1,install.sh,release_preflight,smoke_connect}.py`,
 the per-feature demo scripts, `.github/workflows/release.yaml`, and the
 `hooks`/`supervisor`/`release`/`connect`/`init`/`uninstall`/`doctor`/`repair`/`bootstrap`/`learn`/`explore`/`causal`/`export-pr`
 CLI command groups.
 
-**Kept untouched:** `belay/{contracts,planner,policy,approvals,executor,ledger,proxy,rewind,db}/`
+**Kept untouched:** `rekha/{contracts,planner,policy,approvals,executor,ledger,proxy,rewind,db}/`
 and `conformance/`. These are the control plane, and the retarget depends on
 them being preserved, not rewritten.
 
-**Kept temporarily:** `belay/intent/`. `MerchantMandate` will replace
+**Kept temporarily:** `rekha/intent/`. `MerchantMandate` will replace
 `IntentContract`, reusing its hash-pinning mechanism, in the next phase.
 
 **Created**, each declaring its determinism contract in its docstring:
 
 | Package | Responsibility | Determinism |
 | --- | --- | --- |
-| `belay/finance/` | `Money` (integer minor units), `MerchantMandate` | deterministic |
-| `belay/razorpay/` | webhook ingestion, preflight reads | deterministic |
-| `belay/settlement/` | three-way settlement verification | deterministic, pure |
+| `rekha/finance/` | `Money` (integer minor units), `MerchantMandate` | deterministic |
+| `rekha/razorpay/` | webhook ingestion, preflight reads | deterministic |
+| `rekha/settlement/` | three-way settlement verification | deterministic, pure |
 | `recovery/` | AI diagnosis, strategy, prioritization | **non-deterministic** |
 | `bench/` | adversarial scenarios and metrics | deterministic |
 
-`recovery/` is a top-level package rather than a subpackage of `belay/`,
-mirroring the existing `belay`/`conformance` split. That is deliberate: the
+`recovery/` is a top-level package rather than a subpackage of `rekha/`,
+mirroring the existing `rekha`/`conformance` split. That is deliberate: the
 directory listing should make the architectural boundary legible without
 reading any code.
 
 ## The load-bearing invariant
 
 `recovery/` is the only package permitted to consult a language model. In
-exchange it may not import `belay.ledger`, `belay.approvals`, `belay.policy`,
-`belay.executor`, `belay.settlement`, or `belay.finance`. It holds no
+exchange it may not import `rekha.ledger`, `rekha.approvals`, `rekha.policy`,
+`rekha.executor`, `rekha.settlement`, or `rekha.finance`. It holds no
 Razorpay credentials. Its only route outward is an MCP client session against
-the Belay proxy -- the same governed surface any other agent faces. Its only
+the Rekha proxy -- the same governed surface any other agent faces. Its only
 output is a proposal.
 
 This is enforced by `tests/test_layer_boundaries.py`, which parses the AST of
@@ -126,7 +126,7 @@ Measured immediately after the strip:
 | | Before (`ed7fdf1`) | After |
 | --- | --- | --- |
 | Python LOC | 31,896 | 15,551 |
-| `belay/cli/main.py` | 3,394 lines | 1,020 lines |
+| `rekha/cli/main.py` | 3,394 lines | 1,020 lines |
 | Tests passing | 985 | 408 |
 | Tests failing | 4 | **0** |
 | Fast suite runtime | 145 s | 19 s |
@@ -164,13 +164,13 @@ Four observations worth recording:
 
 **Keep the Native Agent Gate and add payments alongside it.** Rejected. It is
 a second, partially-parallel decision engine whose surfaces mostly
-self-report `trust_tier: UNKNOWN`, and `belay/action_envelope.py` existed
+self-report `trust_tier: UNKNOWN`, and `rekha/action_envelope.py` existed
 solely to observe that the two engines' input shapes agree -- its own
 docstring notes neither of its conversion functions is called from any
 production path. Carrying it would double the surface a reviewer must read to
 find the payments control plane, for no benefit to the target product.
 
-**Rename the `belay` package to something payments-flavoured.** Rejected. A
+**Rename the `rekha` package to something payments-flavoured.** Rejected. A
 mass import rewrite produces thousands of lines of diff with no behavioural
 change and no signal, and it would obscure the git history that is one of
 this repository's genuine assets.

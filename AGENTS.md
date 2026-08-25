@@ -29,10 +29,10 @@ for what was deleted and why. The pre-retarget state is preserved at the tag
 
 | Package | Responsibility | Determinism |
 | --- | --- | --- |
-| `belay/` | financial control plane: contracts, planning, policy, approvals, idempotent execution, hash-chained evidence, compensation | **deterministic** |
-| `belay/finance/` | `Money` (integer minor units), `MerchantMandate` | deterministic |
-| `belay/razorpay/` | webhook ingestion, preflight reads | deterministic |
-| `belay/settlement/` | three-way settlement verification | deterministic, pure |
+| `rekha/` | financial control plane: contracts, planning, policy, approvals, idempotent execution, hash-chained evidence, compensation | **deterministic** |
+| `rekha/finance/` | `Money` (integer minor units), `MerchantMandate` | deterministic |
+| `rekha/razorpay/` | webhook ingestion, preflight reads | deterministic |
+| `rekha/settlement/` | three-way settlement verification | deterministic, pure |
 | `recovery/` | AI diagnosis, strategy, prioritization, estimation | **non-deterministic** |
 | `bench/` | adversarial scenarios and metrics | deterministic |
 | `conformance/` | target-agnostic L1/L2/L3 conformance suite | deterministic |
@@ -42,10 +42,10 @@ for what was deleted and why. The pre-retarget state is preserved at the tag
 **The AI proposes. The control plane authorizes.**
 
 `recovery/` is the only package allowed to call a language model. In exchange
-it must never import `belay.ledger`, `belay.approvals`, `belay.policy`,
-`belay.executor`, `belay.settlement`, or `belay.finance`. It holds no
+it must never import `rekha.ledger`, `rekha.approvals`, `rekha.policy`,
+`rekha.executor`, `rekha.settlement`, or `rekha.finance`. It holds no
 Razorpay credentials and appends to no ledger. Its only route outward is an
-MCP client session against the Belay proxy. Its only output is a
+MCP client session against the Rekha proxy. Its only output is a
 `RecoveryProposal`.
 
 `tests/test_layer_boundaries.py` enforces this by parsing the AST of every
@@ -64,9 +64,9 @@ limits, the approval requirement, or the evidence.
   replayable and provable. If you find yourself asking a model whether an
   action is allowed, stop.
 - **Money is an integer.** Minor units (paise for INR) plus a currency, via
-  `belay/finance/money.py`. A `float` anywhere on an amount path is a
+  `rekha/finance/money.py`. A `float` anywhere on an amount path is a
   correctness bug. Currency mismatches raise; they never coerce.
-- **Default-deny.** `belay/proxy/lifecycle.py::resolve()` refuses any tool
+- **Default-deny.** `rekha/proxy/lifecycle.py::resolve()` refuses any tool
   with no contract (`contract_missing`). The pinned `ContractSet` *is* the
   agent's action space. Never add an `unsafe_passthrough` to make a demo work.
 - **The ledger is append-only.** `LedgerStore` exposes no update and no
@@ -74,9 +74,9 @@ limits, the approval requirement, or the evidence.
 - **Honest reporting.** Absence of evidence is never reported as agreement.
   `pending` and `unverifiable` are real verdicts and must not collapse into
   `matched`. `fully_rewound` is never true while an irreversible step is in
-  scope. This taxonomy discipline (`belay/rewind/service.py`) is deliberate;
+  scope. This taxonomy discipline (`rekha/rewind/service.py`) is deliberate;
   mirror it in new verdicts rather than returning a boolean.
-- **Contracts are data, never code.** `belay/contracts/expressions.py` is a
+- **Contracts are data, never code.** `rekha/contracts/expressions.py` is a
   closed grammar with no `eval`, no `ast`, and one blessed builtin. It is a
   security boundary. Do not widen it.
 - **Never commit credentials.** `.env` is gitignored. Keys come from the
@@ -85,7 +85,7 @@ limits, the approval requirement, or the evidence.
 
 ## Conventions
 
-- Python 3.12+. `ruff check .` and `mypy belay` must be clean.
+- Python 3.12+. `ruff check .` and `mypy rekha` must be clean.
 - `pytest` must be green before any commit. The fast suite runs in ~20s;
   there is no excuse for skipping it.
 - Branch coverage floor is enforced in CI and is **upward-only**. Raise it as
@@ -108,26 +108,26 @@ limits, the approval requirement, or the evidence.
 Most of what a new feature needs already exists and is tested. Before writing
 a new mechanism, check:
 
-- Rolling windows over ledger history -> `belay/policy/quota.py::QuotaTracker`
+- Rolling windows over ledger history -> `rekha/policy/quota.py::QuotaTracker`
   (note it keys on `plan_id`, not `step_seq`, because a paused call's retry
   re-plans under a new `step_seq` -- getting this wrong double-counts).
-- Single-use authorization -> `belay/approvals/queue.py::consume()`. This is
+- Single-use authorization -> `rekha/approvals/queue.py::consume()`. This is
   a compare-and-swap, because a read-then-write version was reproducibly
   proven wrong under a real race. Do not "simplify" it.
 - Argument tampering after approval -> already prevented, because
   `plan_id = hash(session, tool, args)`. A changed amount produces a
   different `plan_id` and the old approval is simply never found.
-- Exactly-once execution -> `belay/executor/idempotency.py`.
-- Tamper-evident provenance -> `belay/ledger/`, `SignedEvidence`.
-- Compensating a mistaken action -> `belay/rewind/`.
-- Deriving state from history alone -> `belay/ledger/replay.py`'s pure fold.
+- Exactly-once execution -> `rekha/executor/idempotency.py`.
+- Tamper-evident provenance -> `rekha/ledger/`, `SignedEvidence`.
+- Compensating a mistaken action -> `rekha/rewind/`.
+- Deriving state from history alone -> `rekha/ledger/replay.py`'s pure fold.
 - Keeping PII out of evidence -> `redact` in contracts.
 
 ## Razorpay integration
 
 Write paths reach Razorpay **only** through the official
 `razorpay/razorpay-mcp-server` (MIT), launched as a wrapped stdio MCP
-subprocess by `belay wrap --command docker ...`. Do not add an HTTP client
+subprocess by `rekha wrap --command docker ...`. Do not add an HTTP client
 for payments: a second, ungoverned path to Razorpay defeats the entire
 control plane. Do not fork or vendor the Razorpay MCP server; pin it.
 
@@ -150,6 +150,6 @@ Deliberately out of scope. Do not add these without an explicit decision:
 - General double-entry accounting.
 - PCI scope, card storage, tokenization.
 - Publishing to PyPI or npm.
-- Renaming the `belay` package (mass diff, zero signal).
+- Renaming the `rekha` package (mass diff, zero signal).
 - Migrating `mcp` to 2.0 (real breaking change, invisible to the product,
   documented pin).

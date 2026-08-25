@@ -1,4 +1,4 @@
-"""The report `belay-conformance run` prints (plan.md E8 exit criterion)."""
+"""The report `rekha-conformance run` prints (plan.md E8 exit criterion)."""
 
 from __future__ import annotations
 
@@ -30,4 +30,4 @@ class ConformanceReport:
 
     def render(self) -> str:
         verdict = f"L{self.level} PASSED" if self.passed else f"L{self.level} FAILED"
-        return f"belay-conformance: target={self.target} -> {verdict}"
+        return f"rekha-conformance: target={self.target} -> {verdict}"

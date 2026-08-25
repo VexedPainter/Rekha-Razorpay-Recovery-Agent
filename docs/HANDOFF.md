@@ -33,8 +33,8 @@ All four requirements of the official track bar are met and demonstrable:
 3. **Apply** at `forms.gle/d9r2gvxp8cmoZhon9` before **2026-09-05**.
 
 Optional polish, in value order, none required:
-- one live Razorpay run (`belay recover --live`, already wired, needs no Docker)
-- a static HTML dashboard (`belay dashboard` exists but is not retargeted)
+- one live Razorpay run (`rekha recover --live`, already wired, needs no Docker)
+- a static HTML dashboard (`rekha dashboard` exists but is not retargeted)
 - a spec section for the financial control plane in `docs/spec.md`
 
 ## Where it lives / how to run
@@ -44,7 +44,7 @@ C:\Users\Pc\Desktop\Razorpay_Hackathon
 ```
 
 Local only, never pushed. `.git` intact (history is a pitch asset). Repo-local git
-identity `Jairo Gelpi <gelpierreape@gmail.com>`; global config untouched.
+identity `Rahul J <rahuljaiprakashden@gmail.com>`; global config untouched.
 
 Always use the venv Python (project needs 3.12; system Python is 3.11):
 
@@ -55,7 +55,7 @@ cd C:\Users\Pc\Desktop\Razorpay_Hackathon
 ```
 
 Put `.\.venv\Scripts` on PATH before the slow suite — some tests shell out to
-`belay-conformance`.
+`rekha-conformance`.
 
 ## The demo, as commands
 
@@ -66,24 +66,24 @@ Each of these is one beat of the pitch video. All offline, no credentials.
 .\.venv\Scripts\python.exe examples\demo_recovery.py
 
 # 2. Seven adversarial scenarios, each naming the layer that refused it
-.\.venv\Scripts\belay.exe bench run
+.\.venv\Scripts\rekha.exe bench run
 
 # 3. The fan-out attack in isolation
 .\.venv\Scripts\python.exe examples\demo_fanout.py
 
 # 4. Settlement mismatch detection (three variants)
-.\.venv\Scripts\python.exe -m belay.cli.main recover --provider replay
+.\.venv\Scripts\python.exe -m rekha.cli.main recover --provider replay
 .\.venv\Scripts\python.exe scripts\simulate_payments.py --rate 0.6 --inject unauthorized
-.\.venv\Scripts\python.exe -m belay.cli.main webhooks replay webhooks.json
-.\.venv\Scripts\belay.exe settle-verify --recon recon.json      # exits 1
+.\.venv\Scripts\python.exe -m rekha.cli.main webhooks replay webhooks.json
+.\.venv\Scripts\rekha.exe settle-verify --recon recon.json      # exits 1
 
 # 5. Measured metrics, folded from the ledger
-.\.venv\Scripts\belay.exe bench metrics --db recovery.db
+.\.venv\Scripts\rekha.exe bench metrics --db recovery.db
 
 # 6. Offline-verifiable signed evidence
-.\.venv\Scripts\belay.exe keygen demo.key
-.\.venv\Scripts\belay.exe verify-export <session-id> --db recovery.db --key demo.key -o evidence.json
-.\.venv\Scripts\belay.exe verify-evidence evidence.json
+.\.venv\Scripts\rekha.exe keygen demo.key
+.\.venv\Scripts\rekha.exe verify-export <session-id> --db recovery.db --key demo.key -o evidence.json
+.\.venv\Scripts\rekha.exe verify-evidence evidence.json
 
 # 7. The inherited control plane still governs and rewinds
 .\.venv\Scripts\python.exe examples\demo.py --oops
@@ -94,7 +94,7 @@ Each of these is one beat of the pitch video. All offline, no credentials.
 | | |
 | --- | --- |
 | Tests | **656 pass / 0 fail**, + 26 slow |
-| Branch coverage | 84.18% (CI floor 83%, upward-only) — measures `belay/` AND `recovery/` |
+| Branch coverage | 84.18% (CI floor 83%, upward-only) — measures `rekha/` AND `recovery/` |
 | L3 conformance | PASSED |
 | Spec MUSTs | 31, all covered, CI-enforced |
 | ruff / mypy | clean |
@@ -107,20 +107,20 @@ One offline run: 200 failed payments, INR 6,55,134 at risk, 15 selected, 5 execu
 
 | Package | Responsibility | Determinism |
 | --- | --- | --- |
-| `belay/` | contracts, planning, policy, approvals, idempotent execution, ledger, compensation | deterministic |
-| `belay/finance/` | `Money` (integer paise), `MerchantMandate` | deterministic |
-| `belay/policy/cumulative.py` | cumulative spend + velocity, folded from the ledger | deterministic, pure |
-| `belay/razorpay/webhooks.py` | HMAC verify, dedupe, ingest, correlate | deterministic |
-| `belay/settlement/` | three-way verification (+ `live.py` read-only source) | deterministic, pure |
+| `rekha/` | contracts, planning, policy, approvals, idempotent execution, ledger, compensation | deterministic |
+| `rekha/finance/` | `Money` (integer paise), `MerchantMandate` | deterministic |
+| `rekha/policy/cumulative.py` | cumulative spend + velocity, folded from the ledger | deterministic, pure |
+| `rekha/razorpay/webhooks.py` | HMAC verify, dedupe, ingest, correlate | deterministic |
+| `rekha/settlement/` | three-way verification (+ `live.py` read-only source) | deterministic, pure |
 | `recovery/` | AI diagnosis, strategy, prioritisation, providers | **non-deterministic** |
 | `bench/` | adversarial scenarios + metrics | deterministic |
 | `conformance/` | target-agnostic L1/L2/L3 suite | deterministic |
 
 **The load-bearing invariant.** `recovery/` is the only package allowed to call an
-LLM, and may not import `belay.ledger`, `belay.approvals`, `belay.policy`,
-`belay.executor`, `belay.settlement`, or `belay.finance.mandate`. Enforced by AST in
+LLM, and may not import `rekha.ledger`, `rekha.approvals`, `rekha.policy`,
+`rekha.executor`, `rekha.settlement`, or `rekha.finance.mandate`. Enforced by AST in
 `tests/test_layer_boundaries.py`, which includes a negative case pinning the
-detector. `belay.finance.money` IS allowed: a mandate is authority, `Money` is
+detector. `rekha.finance.money` IS allowed: a mandate is authority, `Money` is
 arithmetic, and forbidding a value type would push raw ints across the boundary.
 
 Full reasoning for every decision: `docs/adr/0028-*.md` and `docs/adr/0029-*.md`.
@@ -201,7 +201,7 @@ git push origin --tags
 ```
 
 Create the repo **empty** (no README/license) or the push will conflict. Add
-`gelpierreape@gmail.com` as a verified email on the new account so the 111 commits
+`rahuljaiprakashden@gmail.com` as a verified email on the new account so the 111 commits
 attribute to it — cosmetic, but "111 commits over 5 weeks" is a real signal. Do NOT
 rewrite history to change author emails.
 
@@ -212,7 +212,7 @@ GitHub needs a personal access token (`repo` scope) or `gh auth login`.
 One phase per session. After each: run the full gate (fast tests, slow tests, both
 demos, conformance, traceability, ruff, mypy), report real numbers, commit locally
 with a detailed message. Never start on a red build. Do not push. Do not rename the
-`belay` package. Do not attempt the `mcp<2.0` → 2.0 migration.
+`rekha` package. Do not attempt the `mcp<2.0` → 2.0 migration.
 
 ---
 
@@ -228,13 +228,13 @@ remains. Then confirm the state matches:
 
   cd C:\Users\Pc\Desktop\Razorpay_Hackathon
   .\.venv\Scripts\python.exe -m pytest -q --no-cov
-  .\.venv\Scripts\belay.exe bench run
+  .\.venv\Scripts\rekha.exe bench run
 
 Expect 656 passed / 0 failed, and the adversarial suite reporting 6/6 blocked with
 0/10 false positives. Use .\.venv\Scripts\python.exe for everything -- the project
 needs Python 3.12 and the system Python is 3.11.
 
-Context: this repo was my own general AI-agent tool-safety MCP proxy (belay-mcp,
+Context: this repo was my own general AI-agent tool-safety MCP proxy (rekha,
 31,896 LOC, L3 conformant, 28 ADRs). We retargeted it into an AI revenue recovery
 agent for Razorpay with a deterministic financial control plane. It is FUNCTIONALLY
 COMPLETE -- all four requirements of the official Track 03 bar are met: measured
@@ -251,7 +251,7 @@ HANDOFF.md.
 If I ask for changes, work one focused piece at a time. After each, run the full gate
 (fast tests, slow tests, both demos, conformance, traceability, ruff, mypy), report
 the real numbers against the baselines in HANDOFF.md, and commit locally with a
-detailed message. Don't push. Don't rename the belay package. Don't attempt the mcp
+detailed message. Don't push. Don't rename the rekha package. Don't attempt the mcp
 2.0 migration. Update docs/HANDOFF.md at the end.
 
 Ask me before starting if anything in HANDOFF.md doesn't match what you find.

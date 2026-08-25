@@ -21,7 +21,7 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
       - name: Type-check (mypy)
-        run: mypy belay
+        run: mypy rekha
       - name: Test (fast branch-coverage gate)
         run: pytest
       - name: Test (slow, non-live, no coverage)
@@ -50,7 +50,7 @@ jobs:
       - name: Conformance against the installed wheel
         run: |
           cd /tmp
-          /tmp/wheel-venv/bin/belay-conformance run --target belay --level 3
+          /tmp/wheel-venv/bin/rekha-conformance run --target rekha --level 3
 
   cross-platform-clean-room:
     # The fast suite on a genuinely clean VM per OS. One Python version per

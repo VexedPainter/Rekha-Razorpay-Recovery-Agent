@@ -1,6 +1,6 @@
-"""`belay-conformance` console script (plan.md E8, spec §13).
+"""`rekha-conformance` console script (plan.md E8, spec §13).
 
-    belay-conformance run --target belay --level 3
+    rekha-conformance run --target rekha --level 3
 """
 
 from __future__ import annotations
@@ -13,8 +13,8 @@ import typer
 from conformance.report import ConformanceReport, markers_for_level
 
 app = typer.Typer(
-    name="belay-conformance",
-    help="Run the Belay public conformance suite against a ConformanceTarget.",
+    name="rekha-conformance",
+    help="Run the Rekha public conformance suite against a ConformanceTarget.",
     no_args_is_help=True,
 )
 
@@ -23,7 +23,7 @@ _TESTS_DIR = Path(__file__).resolve().parent / "tests"
 
 @app.command()
 def run(
-    target: str = typer.Option("belay", help="'belay' or a 'module:ClassName' adapter path."),
+    target: str = typer.Option("rekha", help="'rekha' or a 'module:ClassName' adapter path."),
     level: int = typer.Option(3, min=1, max=3, help="Conformance level to report (spec §13)."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
@@ -50,7 +50,7 @@ def run(
 @app.command()
 def version() -> None:
     """Print the conformance suite's spec version (spec §13/§14)."""
-    typer.echo("belay-conformance: spec 0.1")
+    typer.echo("rekha-conformance: spec 0.1")
 
 
 def main() -> None:

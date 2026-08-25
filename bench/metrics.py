@@ -15,12 +15,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from belay.finance.money import Money
-from belay.finance.money import total as sum_money
-from belay.ledger.model import Event
-from belay.ledger.store import LedgerStore
-from belay.ledger.verify import verify_chain, verify_coherence
-from belay.razorpay.webhooks import WEBHOOK_RECEIVED, correlate_recoveries
+from rekha.finance.money import Money
+from rekha.finance.money import total as sum_money
+from rekha.ledger.model import Event
+from rekha.ledger.store import LedgerStore
+from rekha.ledger.verify import verify_chain, verify_coherence
+from rekha.razorpay.webhooks import WEBHOOK_RECEIVED, correlate_recoveries
 
 
 @dataclass

@@ -25,15 +25,15 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from belay.clock import FixedClock
-from belay.contracts.model import Contract, ContractSet
-from belay.errors import BelayError
-from belay.finance.mandate import MerchantMandate
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.policy.cumulative import CumulativeTracker, fold_authorized_actions
-from belay.policy.model import PolicyDoc, ToolRule
-from belay.proxy.lifecycle import Lifecycle
+from rekha.clock import FixedClock
+from rekha.contracts.model import Contract, ContractSet
+from rekha.errors import RekhaError
+from rekha.finance.mandate import MerchantMandate
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.policy.cumulative import CumulativeTracker, fold_authorized_actions
+from rekha.policy.model import PolicyDoc, ToolRule
+from rekha.proxy.lifecycle import Lifecycle
 
 NOW = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
 
@@ -41,7 +41,7 @@ NOW = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
 def _contract_set() -> ContractSet:
     link = Contract.model_validate(
         {
-            "belay_contract": "0.1",
+            "rekha_contract": "0.1",
             "tool": "create_payment_link",
             "reversibility": "irreversible",
             "idempotency_key": "$args.reference_id",
@@ -61,7 +61,7 @@ def _contract_set() -> ContractSet:
     )
     read = Contract.model_validate(
         {
-            "belay_contract": "0.1",
+            "rekha_contract": "0.1",
             "tool": "fetch_payment",
             "reversibility": "irreversible",
             "effects": [{"type": "read", "resource": "razorpay.payment", "count": "1"}],
@@ -157,12 +157,12 @@ async def test_fan_out_of_sub_cap_actions_is_stopped_at_the_aggregate_ceiling() 
     lifecycle.start_session("recovery-agent")
 
     allowed = 0
-    refusal: BelayError | None = None
+    refusal: RekhaError | None = None
     for index in range(40):
         try:
             await _spend(lifecycle, upstream, "4000.00", f"fan-{index}")
             allowed += 1
-        except BelayError as exc:
+        except RekhaError as exc:
             refusal = exc
             break
 
@@ -200,7 +200,7 @@ async def test_the_actions_under_the_ceiling_stay_allowed() -> None:
     assert len(upstream.calls) == 10
 
     # Exactly at the ceiling is fine; one paisa more is not.
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await _spend(lifecycle, upstream, "0.01", "exact-over")
     assert excinfo.value.code == "cumulative_limit_exceeded"
 
@@ -220,7 +220,7 @@ async def test_the_ceiling_spans_sessions() -> None:
     second.start_session("recovery-agent")
     await _spend(second, upstream, "5000.00", "span-b-0")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await _spend(second, upstream, "1000.00", "span-b-1")
     assert excinfo.value.code == "cumulative_limit_exceeded"
     assert len(upstream.calls) == 10
@@ -239,7 +239,7 @@ async def test_a_denied_action_does_not_consume_the_budget() -> None:
     lifecycle.start_session("recovery-agent")
 
     # Over the per-action ceiling, so refused before it ever plans.
-    with pytest.raises(BelayError):
+    with pytest.raises(RekhaError):
         await _spend(lifecycle, upstream, "9000.00", "denied-1")
 
     spent = CumulativeTracker(ledger).spent_by_merchant(
@@ -278,7 +278,7 @@ async def test_a_paused_then_approved_action_counts_exactly_once() -> None:
     twice for every human-approved recovery -- and the error would be invisible
     until a budget ran out at half its stated value.
     """
-    from belay.approvals.queue import ApprovalQueue
+    from rekha.approvals.queue import ApprovalQueue
 
     ledger = LedgerStore(clock=FixedClock(NOW))
     upstream = _Upstream()
@@ -439,7 +439,7 @@ async def test_velocity_bounds_action_count_regardless_of_amount() -> None:
     for index in range(5):
         await _spend(lifecycle, upstream, "1.00", f"vel-{index}")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await _spend(lifecycle, upstream, "1.00", "vel-over")
     assert excinfo.value.code == "velocity_limit_exceeded"
     assert excinfo.value.detail["count"] == 5
@@ -454,7 +454,7 @@ async def test_velocity_bounds_action_count_regardless_of_amount() -> None:
 async def test_a_limit_refusal_is_recorded_in_the_ledger() -> None:
     """A blocked action that leaves no evidence is indistinguishable from one
     that was never attempted, which would make the limits unauditable."""
-    from belay.ledger.verify import verify_chain, verify_coherence
+    from rekha.ledger.verify import verify_chain, verify_coherence
 
     ledger = LedgerStore(clock=FixedClock(NOW))
     upstream = _Upstream()
@@ -463,7 +463,7 @@ async def test_a_limit_refusal_is_recorded_in_the_ledger() -> None:
 
     for index in range(12):
         await _spend(lifecycle, upstream, "4000.00", f"ev-{index}")
-    with pytest.raises(BelayError):
+    with pytest.raises(RekhaError):
         await _spend(lifecycle, upstream, "4000.00", "ev-over")
 
     events = ledger.read("s_evidence")
@@ -487,7 +487,7 @@ async def test_the_refusal_names_the_numbers_that_caused_it() -> None:
 
     for index in range(12):
         await _spend(lifecycle, upstream, "4000.00", f"num-{index}")
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await _spend(lifecycle, upstream, "4000.00", "num-over")
 
     detail = excinfo.value.detail
@@ -553,11 +553,11 @@ async def test_twenty_five_autonomous_recoveries_then_the_ceiling(
     lifecycle.start_session("recovery-agent")
 
     executed = 0
-    refusal: BelayError | None = None
+    refusal: RekhaError | None = None
     for index in range(40):
         try:
             outcome = await _spend(lifecycle, upstream, "2000.00", f"arith-{index}")
-        except BelayError as exc:
+        except RekhaError as exc:
             refusal = exc
             break
         if isinstance(outcome, dict) and outcome.get("status") == "pending_approval":
@@ -584,7 +584,7 @@ async def test_a_per_session_policy_cap_aggregates_across_the_session() -> None:
     believes is a budget, but which only ever sees one action, reads as
     protection in the policy document while providing none.
     """
-    from belay.policy.model import Cap, CapMatch
+    from rekha.policy.model import Cap, CapMatch
 
     ledger = LedgerStore(clock=FixedClock(NOW))
     upstream = _Upstream()
@@ -612,7 +612,7 @@ async def test_a_per_session_policy_cap_aggregates_across_the_session() -> None:
         await _spend(lifecycle, upstream, "5000.00", f"sess-{index}")
     assert len(upstream.calls) == 2
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await _spend(lifecycle, upstream, "5000.00", "sess-over")
     assert excinfo.value.code == "policy_denied"
     assert any("per session" in reason for reason in excinfo.value.detail["reasons"])
@@ -623,7 +623,7 @@ async def test_a_per_session_policy_cap_aggregates_across_the_session() -> None:
 async def test_a_per_session_cap_does_not_leak_across_sessions() -> None:
     """`per: session` means what it says. The merchant-wide ceiling is the
     mandate's job, and it is scoped differently on purpose."""
-    from belay.policy.model import Cap, CapMatch
+    from rekha.policy.model import Cap, CapMatch
 
     ledger = LedgerStore(clock=FixedClock(NOW))
     upstream = _Upstream()
@@ -657,24 +657,24 @@ def test_a_per_session_cap_without_an_amount_is_refused_at_load_time() -> None:
     count of what, effects or actions? Silently treating them as `per: call` is
     exactly the bug that existed before, so it is now a load-time error.
     """
-    from belay.policy.model import Cap, CapMatch
+    from rekha.policy.model import Cap, CapMatch
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         Cap(match=CapMatch(effect="create"), max_count=5, per="session", over="deny")
     assert excinfo.value.code == "contract_invalid"
     assert "max_count" in excinfo.value.detail["reason"]
 
-    with pytest.raises(BelayError):
+    with pytest.raises(RekhaError):
         Cap(match=CapMatch(effect="send"), max_recipients=5, per="session", over="deny")
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         Cap(match=CapMatch(effect="spend"), per="session", over="deny")
     assert "requires `max_amount`" in excinfo.value.detail["reason"]
 
 
 def test_a_per_call_cap_still_accepts_counts() -> None:
     """The `per: session` restriction must not have broken ordinary caps."""
-    from belay.policy.model import Cap, CapMatch
+    from rekha.policy.model import Cap, CapMatch
 
     cap = Cap(match=CapMatch(effect="create"), max_count=1, over="pause")
     assert cap.per == "call"
@@ -796,7 +796,7 @@ async def test_cumulative_spend_never_exceeds_the_ceiling(
     for index, rupees in enumerate(amounts_rupees):
         try:
             await _spend(lifecycle, upstream, rupees, f"prop-{index}")
-        except BelayError as exc:
+        except RekhaError as exc:
             assert exc.code in (
                 "cumulative_limit_exceeded",
                 "velocity_limit_exceeded",

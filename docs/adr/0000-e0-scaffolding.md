@@ -21,7 +21,7 @@ herramientas y el CI antes de implementar ninguna lógica de negocio, según
 - Alembic inicializado con `env.py`/`script.py.mako` pero sin revisiones:
   las tablas (`sessions`, `events`, `approvals`, `contract_sets`) llegan en E2
   junto con los modelos SQLAlchemy que las respaldan.
-- CLI de Typer con app vacía: solo se garantiza `belay --help`; los
+- CLI de Typer con app vacía: solo se garantiza `rekha --help`; los
   subcomandos (`wrap`, `run`, `plan`, `approvals`, `rewind`, `verify`) se
   añaden entrega a entrega.
 

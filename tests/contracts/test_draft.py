@@ -1,10 +1,10 @@
-"""belay/contracts/draft.py: heuristic contract drafting from MCP tool schemas."""
+"""rekha/contracts/draft.py: heuristic contract drafting from MCP tool schemas."""
 
 from __future__ import annotations
 
-from belay.contracts.draft import draft_contract, draft_contracts
-from belay.contracts.loader import load_contract_set
 from mcp.types import Tool, ToolAnnotations
+from rekha.contracts.draft import draft_contract, draft_contracts
+from rekha.contracts.loader import load_contract_set
 
 
 def _tool(name: str, *, read_only: bool = False, destructive: bool = False) -> Tool:

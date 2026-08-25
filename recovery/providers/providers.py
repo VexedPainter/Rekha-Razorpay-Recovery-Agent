@@ -211,7 +211,7 @@ class ReplayProvider:
         self._live = live
 
     def _key(self, system: str, user: str) -> str:
-        from belay.canonical import canonical_bytes, sha256_hex
+        from rekha.canonical import canonical_bytes, sha256_hex
 
         return sha256_hex(canonical_bytes({"system": system, "user": user}))[:20]
 

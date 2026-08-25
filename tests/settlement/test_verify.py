@@ -21,10 +21,10 @@ import json
 from typing import Any
 
 import pytest
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.razorpay.webhooks import ingest, sign_payload
-from belay.settlement.verify import (
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.razorpay.webhooks import ingest, sign_payload
+from rekha.settlement.verify import (
     EmptySettlementSource,
     FixtureSettlementSource,
     MismatchReason,
@@ -351,7 +351,7 @@ def test_the_source_name_is_always_reported() -> None:
 
 
 def test_the_live_source_refuses_a_non_test_key() -> None:
-    from belay.settlement.live import LiveSettlementSource
+    from rekha.settlement.live import LiveSettlementSource
 
     with pytest.raises(ValueError, match="test-mode only"):
         LiveSettlementSource("rzp_live_realkey", "secret", year=2026, month=8)

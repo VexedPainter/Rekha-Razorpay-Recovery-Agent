@@ -8,10 +8,10 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from belay.approvals.queue import ApprovalQueue
-from belay.db.lifecycle import EngineLease
-from belay.executor.idempotency import IdempotencyStore
-from belay.ledger.store import LedgerStore
+from rekha.approvals.queue import ApprovalQueue
+from rekha.db.lifecycle import EngineLease
+from rekha.executor.idempotency import IdempotencyStore
+from rekha.ledger.store import LedgerStore
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 

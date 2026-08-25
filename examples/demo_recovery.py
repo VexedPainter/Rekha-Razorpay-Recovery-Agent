@@ -44,8 +44,8 @@ def _run(*args: str, quiet: bool = False) -> str:
     return completed.stdout
 
 
-def _belay(*args: str, quiet: bool = False) -> str:
-    return _run(sys.executable, "-m", "belay.cli.main", *args, quiet=quiet)
+def _rekha(*args: str, quiet: bool = False) -> str:
+    return _run(sys.executable, "-m", "rekha.cli.main", *args, quiet=quiet)
 
 
 def main() -> int:
@@ -65,7 +65,7 @@ def main() -> int:
     print("-" * 78)
     print("  The AI proposes. It cannot execute, approve, or record -- every action")
     print("  goes out through the governed proxy, and the mandate decides.")
-    recover_out = _belay("recover", "--db", DB, "--provider", "replay")
+    recover_out = _rekha("recover", "--db", DB, "--provider", "replay")
 
     # ---------------------------------------------------------------------- 4
     print()
@@ -93,7 +93,7 @@ def main() -> int:
     print("-" * 78)
     print("  Note the duplicate: Razorpay retries deliveries, and a retry must not")
     print("  be able to make one recovery look like two.")
-    _belay("webhooks", "replay", WEBHOOKS, "--db", DB)
+    _rekha("webhooks", "replay", WEBHOOKS, "--db", DB)
 
     # ---------------------------------------------------------------------- 6
     print()
@@ -102,7 +102,7 @@ def main() -> int:
     print("-" * 78)
     print("  `authorized` is what we asked for. `paid` is what a customer actually")
     print("  paid, according to a signed webhook. Only the second is recovery.")
-    recoveries_out = _belay("webhooks", "recoveries", "--db", DB)
+    recoveries_out = _rekha("webhooks", "recoveries", "--db", DB)
 
     # ---------------------------------------------------------------- evidence
     print()
@@ -111,7 +111,7 @@ def main() -> int:
     print("-" * 78)
     print("  Every decision above -- diagnosis, mandate check, policy verdict,")
     print("  approval, execution, webhook -- is one hash-chained event.")
-    verify_out = _belay("verify", DB)
+    verify_out = _rekha("verify", DB)
 
     # ------------------------------------------------------------------ summary
     at_risk = _grep(recover_out, "revenue at risk")
@@ -141,8 +141,8 @@ def main() -> int:
         if line.startswith(("chain:", "coherence:", "events:")):
             print(f"  {line}")
     print()
-    print(f"  Inspect it yourself:  belay verify {DB}")
-    print(f"                        belay webhooks recoveries --db {DB}")
+    print(f"  Inspect it yourself:  rekha verify {DB}")
+    print(f"                        rekha webhooks recoveries --db {DB}")
     return 0
 
 

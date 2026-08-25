@@ -3,7 +3,7 @@
 Fast on purpose: no subprocess, no real MCP transport. `examples/fs-server`
 and `examples/crm-mock` already cover the real-subprocess path (E3/E6); the
 conformance suite only needs *a* correct implementation of each contract's
-tool semantics to exercise Belay's own governance logic.
+tool semantics to exercise Rekha's own governance logic.
 """
 
 from __future__ import annotations

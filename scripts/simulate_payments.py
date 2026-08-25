@@ -42,9 +42,9 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from belay.ledger.store import LedgerStore  # noqa: E402
-from belay.razorpay.webhooks import sign_payload  # noqa: E402
 from recovery.providers import load_env  # noqa: E402
+from rekha.ledger.store import LedgerStore  # noqa: E402
+from rekha.razorpay.webhooks import sign_payload  # noqa: E402
 
 SANDBOX = REPO_ROOT / "examples" / "razorpay-sandbox" / "server.py"
 
@@ -108,7 +108,7 @@ async def main() -> int:
 
     links = _links_from_ledger(REPO_ROOT / args.db)
     if not links:
-        print(f"no payment links found in {args.db} -- run `belay recover` first")
+        print(f"no payment links found in {args.db} -- run `rekha recover` first")
         return 2
 
     rng = random.Random(args.seed)
@@ -217,7 +217,7 @@ async def main() -> int:
     out = REPO_ROOT / args.out
     out.write_text(json.dumps(envelopes, indent=2), encoding="utf-8")
     print(f"\nwrote {len(envelopes)} envelope(s) to {args.out}")
-    print(f"ingest with: belay webhooks replay {args.out} --db {args.db}")
+    print(f"ingest with: rekha webhooks replay {args.out} --db {args.db}")
     return 0
 
 

@@ -13,7 +13,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-mcp = FastMCP("belay-crm-mock")
+mcp = FastMCP("rekha-crm-mock")
 
 _records: dict[str, dict[str, Any]] = {}
 

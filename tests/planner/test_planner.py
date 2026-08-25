@@ -7,12 +7,12 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from belay.clock import FixedClock
-from belay.contracts.model import Contract, Effect, SqlHint, Undo
-from belay.errors import BelayError
-from belay.planner.adapters.sql import make_sql_runner
-from belay.planner.model import PlanningSession
-from belay.planner.planner import Planner, check_plan_binding
+from rekha.clock import FixedClock
+from rekha.contracts.model import Contract, Effect, SqlHint, Undo
+from rekha.errors import RekhaError
+from rekha.planner.adapters.sql import make_sql_runner
+from rekha.planner.model import PlanningSession
+from rekha.planner.planner import Planner, check_plan_binding
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
@@ -26,7 +26,7 @@ def anyio_backend() -> str:
 
 def _write_contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.update_record",
         reversibility="reversible",
         undo=Undo(tool="crm.update_record", args={}),
@@ -37,7 +37,7 @@ def _write_contract() -> Contract:
 def _bulk_delete_contract() -> Contract:
     # No declared count: the contract cannot promise a number for a bulk op.
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.bulk_delete",
         reversibility="irreversible",
         effects=[Effect(type="delete", resource="crm.record")],
@@ -134,7 +134,7 @@ async def test_plan_expiration_rejects_execution_after_ttl() -> None:
     plan = await planner.plan("crm.update_record", {"id": 1}, session)
 
     clock.set(clock.now() + timedelta(minutes=11))
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         check_plan_binding(plan, "crm.update_record", {"id": 1}, clock=clock)
     assert excinfo.value.code == "plan_expired"
 
@@ -150,13 +150,13 @@ async def test_plan_execution_within_ttl_is_accepted() -> None:
 
 
 async def test_plan_mismatch_on_non_identical_args() -> None:
-    """@spec("5.4.1") — Belay MUST re-validate byte-identical args before executing a bound plan."""
+    """@spec("5.4.1") — Rekha MUST re-validate byte-identical args before executing a bound plan."""
     clock = FixedClock(datetime(2026, 7, 22, 12, 0, tzinfo=UTC))
     planner = Planner(clock=clock)
     session = PlanningSession(session_id="s1", contract=_write_contract())
     plan = await planner.plan("crm.update_record", {"id": 1}, session)
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         check_plan_binding(plan, "crm.update_record", {"id": 2}, clock=clock)
     assert excinfo.value.code == "plan_mismatch"
 
@@ -176,7 +176,7 @@ def sql_engine(tmp_path: Path) -> Iterator[Engine]:
 
 def _sql_hinted_contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="crm.bulk_delete",
         reversibility="irreversible",
         effects=[Effect(type="delete", resource="crm.record")],
@@ -250,6 +250,6 @@ async def test_plan_mismatch_on_different_tool() -> None:
     session = PlanningSession(session_id="s1", contract=_write_contract())
     plan = await planner.plan("crm.update_record", {"id": 1}, session)
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         check_plan_binding(plan, "crm.other_tool", {"id": 1}, clock=clock)
     assert excinfo.value.code == "plan_mismatch"

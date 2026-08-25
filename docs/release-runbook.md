@@ -1,6 +1,6 @@
 # Release runbook (E23)
 
-Operator procedure for cutting a Belay GitHub prerelease. This is a human
+Operator procedure for cutting a Rekha GitHub prerelease. This is a human
 procedure with exact commands, not automation — `scripts/
 release_preflight.py` (E23 Task 1) and `.github/workflows/release.yaml`
 (E23 Task 2) do the actual validation/building; this document is the
@@ -8,7 +8,7 @@ order to run them in and what each result means.
 
 Every command below uses `py -3.13` and assumes a checkout of this repo
 with `gh` authenticated against an account with push access to
-`Jairogelpi/belay-mcp` (`gh auth status` to check;
+`Jairogelpi/rekha` (`gh auth status` to check;
 `gh auth switch --hostname github.com --user <account>` if more than one
 account is logged in).
 
@@ -23,7 +23,7 @@ Run the composed check first — it runs everything below in one shot and
 fails on the first problem it finds:
 
 ```bash
-py -3.13 scripts/release_preflight.py prepare --tag v0.2.0a1 --repo Jairogelpi/belay-mcp
+py -3.13 scripts/release_preflight.py prepare --tag v0.2.0a1 --repo Jairogelpi/rekha
 ```
 
 `prepare` requires `origin/main` to already have every one of E23's nine
@@ -74,7 +74,7 @@ above just confirmed local `main` equals):
 
 ```bash
 SHA=$(git rev-parse origin/main)
-py -3.13 scripts/release_preflight.py required-checks --repo Jairogelpi/belay-mcp --sha "$SHA"
+py -3.13 scripts/release_preflight.py required-checks --repo Jairogelpi/rekha --sha "$SHA"
 ```
 
 The nine required check-run names (exact strings, `scripts/
@@ -91,7 +91,7 @@ release_preflight.py::REQUIRED_CHECK_NAMES`):
 "Release notes" below):
 
 ```bash
-gh variable list --repo Jairogelpi/belay-mcp
+gh variable list --repo Jairogelpi/rekha
 # PYPI_PUBLISH_ENABLED should be absent, or present and not "true"
 ```
 
@@ -120,8 +120,8 @@ successful run.
 ## 3. Monitor the release workflow
 
 ```bash
-gh run list --repo Jairogelpi/belay-mcp --workflow release.yaml --limit 1
-gh run watch --repo Jairogelpi/belay-mcp <run-id>
+gh run list --repo Jairogelpi/rekha --workflow release.yaml --limit 1
+gh run watch --repo Jairogelpi/rekha <run-id>
 ```
 
 The `resolve` job's own log line (`cat resolved.json`) states the exact
@@ -133,9 +133,9 @@ workflow resolved the *same* commit you tagged.
 
 ```bash
 mkdir -p /tmp/release-verify
-gh release download v0.2.0a1 --repo Jairogelpi/belay-mcp --dir /tmp/release-verify
+gh release download v0.2.0a1 --repo Jairogelpi/rekha --dir /tmp/release-verify
 py -3.13 scripts/release_preflight.py verify-artifacts --tag v0.2.0a1 --directory /tmp/release-verify
-gh release view v0.2.0a1 --repo Jairogelpi/belay-mcp --json isPrerelease,tagName,targetCommitish
+gh release view v0.2.0a1 --repo Jairogelpi/rekha --json isPrerelease,tagName,targetCommitish
 ```
 
 Confirm: `isPrerelease` is `true` (alpha tag), `tagName` is `v0.2.0a1`,
@@ -154,7 +154,7 @@ never the tag:
    a finished one, while the fix is in progress:
 
    ```bash
-   gh release edit v0.2.0a1 --repo Jairogelpi/belay-mcp \
+   gh release edit v0.2.0a1 --repo Jairogelpi/rekha \
      --notes "INCOMPLETE -- release workflow run <run-id> failed at <job>. Fix in progress, see <PR URL>."
    ```
 
@@ -167,7 +167,7 @@ never the tag:
    tag:**
 
    ```bash
-   gh workflow run release.yaml --repo Jairogelpi/belay-mcp --ref main -f tag=v0.2.0a1
+   gh workflow run release.yaml --repo Jairogelpi/rekha --ref main -f tag=v0.2.0a1
    ```
 
    The `resolve` job checks out `main` (the repaired workflow file) but
@@ -199,13 +199,13 @@ here so the same runbook covers the whole rollout in order.
 **Enable private vulnerability reporting:**
 
 ```bash
-gh api --method PUT repos/Jairogelpi/belay-mcp/private-vulnerability-reporting
+gh api --method PUT repos/Jairogelpi/rekha/private-vulnerability-reporting
 ```
 
 **Read it back** (must report the feature enabled):
 
 ```bash
-gh api repos/Jairogelpi/belay-mcp/private-vulnerability-reporting
+gh api repos/Jairogelpi/rekha/private-vulnerability-reporting
 ```
 
 **Protect `main`** — a ruleset requiring a pull request, zero required
@@ -250,7 +250,7 @@ nothing here is secret):
 ```
 
 ```bash
-gh api --method POST repos/Jairogelpi/belay-mcp/rulesets --input ruleset.json
+gh api --method POST repos/Jairogelpi/rekha/rulesets --input ruleset.json
 ```
 
 **Read it back** (verify every context, the pull-request rule, the
@@ -258,8 +258,8 @@ zero-approval setting, and the bypass actor are all exactly what was
 requested — never assume the POST body was applied byte-for-byte):
 
 ```bash
-gh api repos/Jairogelpi/belay-mcp/rulesets
-gh api repos/Jairogelpi/belay-mcp/rulesets/<id>
+gh api repos/Jairogelpi/rekha/rulesets
+gh api repos/Jairogelpi/rekha/rulesets/<id>
 ```
 
 ## Release notes
@@ -283,20 +283,20 @@ gh api repos/Jairogelpi/belay-mcp/rulesets/<id>
 > Linux/macOS/Windows binaries, all built and smoke-tested from the exact
 > immutable tagged commit (`.github/workflows/release.yaml`, E23).
 >
-> **Scope:** zero-config `belay connect`/`belay disconnect` (E22) covers
+> **Scope:** zero-config `rekha connect`/`rekha disconnect` (E22) covers
 > exactly one bundled, pinned upstream — the official Filesystem MCP
 > server (`@modelcontextprotocol/server-filesystem`). No other server is
 > wired into zero-config connect yet.
 >
 > **Known limitation:** Codex CLI only gets MCP-tool-call protection
 > through this connection — there is no Codex-side native-tool hook
-> equivalent to Claude Code's `PreToolUse`/`PostToolUse` gate (`belay
+> equivalent to Claude Code's `PreToolUse`/`PostToolUse` gate (`rekha
 > hooks install`, E18, Claude Code only).
 >
 > **PyPI:** not published unless the `PYPI_PUBLISH_ENABLED` repository
 > variable was independently set to `true` before this tag was pushed
 > (see §1 above) *and* PyPI Trusted Publishing was independently
-> configured on the `belay-mcp` PyPI project by a human with PyPI account
+> configured on the `rekha` PyPI project by a human with PyPI account
 > access — neither of those is something this workflow or an agent can
 > set up unattended. Check the `publish-pypi` job's own status in the
 > release workflow run before assuming either happened.

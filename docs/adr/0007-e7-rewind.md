@@ -6,11 +6,11 @@ Estado: aceptado
 ## Contexto
 
 E7 implementa `docs/spec.md` §10 (Rewind), según `docs/plan.md` sección "E7 —
-Rewind (spec §10) — cierra L3". Construye `belay/rewind/service.py`
+Rewind (spec §10) — cierra L3". Construye `rekha/rewind/service.py`
 (`RewindService`) sobre la evidencia del ledger que E6 produce (journal,
 captura, resultado, compensación materializada), unifica el auto-unwind
 mínimo de `SagaExecutor.compensate`/`run_saga` (deliberadamente estrecho en
-E6) con el rewind real, y añade `belay rewind` a la CLI.
+E6) con el rewind real, y añade `rekha rewind` a la CLI.
 
 ## Decisiones
 
@@ -20,8 +20,8 @@ E6) con el rewind real, y añade `belay rewind` a la CLI.
   llama a `is_fenced()` como primera línea de cada intento de paso, antes de
   incrementar `step_seq` o resolver el contrato, y lanza `session_fenced` si
   la sesión ya está cercada. Se eligió un evento de ledger en vez de un flag
-  en el objeto `Lifecycle` en memoria porque `belay run` (el proceso que vive
-  la sesión) y `belay rewind` (el proceso que la cierra) son procesos
+  en el objeto `Lifecycle` en memoria porque `rekha run` (el proceso que vive
+  la sesión) y `rekha rewind` (el proceso que la cierra) son procesos
   separados que solo comparten el fichero SQLite — cualquier mecanismo en
   memoria sería invisible entre procesos, que es exactamente el escenario
   real de la demo (plan.md §10). El costo es una lectura completa del ledger
@@ -32,7 +32,7 @@ E6) con el rewind real, y añade `belay rewind` a la CLI.
   explícita entre un paso que arranca y un fence concurrente, vía
   `anyio.create_task_group`), más `tests/cli/test_rewind.py::
   test_rewind_fencing_blocks_the_governed_session_from_new_steps` contra un
-  proceso `belay run` real.
+  proceso `rekha run` real.
 - **La honestidad (§10.3) vive en una sola propiedad, no en lógica dispersa.**
   `RewindReport.fully_rewound` es la única fuente de verdad: falso si
   `dry_run`, falso si *cualquier* paso en alcance no es `"reversible"`
@@ -61,11 +61,11 @@ E6) con el rewind real, y añade `belay rewind` a la CLI.
 - **`compensate_one` es el único lugar que apenda
   `compensation_executed`/`compensation_failed`.** Antes de E7,
   `SagaExecutor.compensate` (usado por `run_saga`'s auto-unwind, spec §8.2) y
-  el rewind real habrían duplicado esa lógica. `belay/rewind/service.py::
+  el rewind real habrían duplicado esa lógica. `rekha/rewind/service.py::
   compensate_one(ledger, session_id, step_seq, comp, executor)` es ahora esa
   única función; `SagaExecutor.compensate` es una fachada de una línea que
   delega en ella (import local para evitar un ciclo top-level entre
-  `belay.executor.saga` y `belay.rewind.service`). El auto-unwind de E6 sigue
+  `rekha.executor.saga` y `rekha.rewind.service`). El auto-unwind de E6 sigue
   sin fencing, sin reporte honesto ni `--skip-and-continue` — eso es
   exclusivo de `RewindService.rewind()`, tal como E6 lo dejó documentado como
   deliberadamente mínimo.
@@ -74,13 +74,13 @@ E6) con el rewind real, y añade `belay rewind` a la CLI.
   intento.** `RewindService._compensation_plan` construye un `Plan` sintético
   (mismos campos que el forward path) con `plan_id = f"rewind_{sha256(session_id,
   step_seq, tool, args)[:16]}"` — determinista, no aleatorio — precisamente
-  porque una `pause` puede requerir una segunda invocación de `belay rewind`
-  tras `belay approvals approve`; con un `plan_id` aleatorio la segunda
+  porque una `pause` puede requerir una segunda invocación de `rekha rewind`
+  tras `rekha approvals approve`; con un `plan_id` aleatorio la segunda
   invocación jamás encontraría el item ya aprobado (`ApprovalQueue.for_plan`
   no lo hallaría) y quedaría parada para siempre. Un `deny` detiene igual
   que en el forward path (spec §6.2: `deny > pause > allow`).
   Test: `test_compensation_over_a_cap_pauses_like_a_forward_action` — pausa,
-  aprueba vía `ApprovalQueue.approve` directamente (como haría `belay
+  aprueba vía `ApprovalQueue.approve` directamente (como haría `rekha
   approvals approve`), reintenta `rewind()` y verifica que ahora procede y
   reporta `fully_rewound=True`.
 - **`halt_on_failure` es el default; `skip_and_continue` se registra siempre
@@ -92,7 +92,7 @@ E6) con el rewind real, y añade `belay rewind` a la CLI.
 - **`_as_dict` (en `saga.py` y ahora también en `rewind/service.py`) desenvuelve
   `CallToolResult.structuredContent` antes de tratar el valor como
   `$result`/`$state`.** Bug real encontrado al correr la demo completa
-  (plan.md §10) contra el proxy real: el executor que `BelayProxyServer` le
+  (plan.md §10) contra el proxy real: el executor que `RekhaProxyServer` le
   pasa a `SagaExecutor` es la respuesta MCP cruda del upstream
   (`ClientSession.call_tool`), cuyo payload de negocio vive anidado en
   `.structuredContent` (con un posible nivel extra `{"result": ...}` según
@@ -118,7 +118,7 @@ E6) con el rewind real, y añade `belay rewind` a la CLI.
 
 ## Brechas conocidas / seguimiento
 
-- `belay approvals approve --narrow <filter>` (la re-narrow explícita del
+- `rekha approvals approve --narrow <filter>` (la re-narrow explícita del
   guion de plan.md §10) no existe; el flujo equivalente probado aquí es que
   el agente reintente con un `args` distinto (nuevo `plan_id` por
   construcción, spec §12) y el operador apruebe *ese* item. Añadir el flag
@@ -126,7 +126,7 @@ E6) con el rewind real, y añade `belay rewind` a la CLI.
 - `examples/demo.py` (el guion reproducible con "--oops", mencionado en
   plan.md E9) no se creó en esta entrega; la mecánica completa del guion de
   §10 se probó end-to-end vía `tests/cli/test_rewind.py` contra procesos
-  `belay run`/`belay rewind` reales, pero no vía ese script concreto.
+  `rekha run`/`rekha rewind` reales, pero no vía ese script concreto.
 - El fencing añade una lectura completa del ledger de la sesión en cada
   `govern_and_execute`; aceptable al volumen de v0.1, con nota para
   optimizar (p.ej. una tabla `sessions.fenced_at`) si el ledger de una sesión
@@ -137,8 +137,8 @@ E6) con el rewind real, y añade `belay rewind` a la CLI.
 - `docs/spec.md` §10 (Rewind), §10.1-§10.3, §12 (compensation blast radius),
   §11 (`session_fenced`, `verification_failed`).
 - `docs/plan.md` sección "E7 — Rewind (spec §10) — cierra L3".
-- Código: `belay/rewind/service.py`, `belay/proxy/lifecycle.py` (chequeo de
-  fencing), `belay/executor/saga.py` (`compensate` delegado), `belay/cli/main.py`
+- Código: `rekha/rewind/service.py`, `rekha/proxy/lifecycle.py` (chequeo de
+  fencing), `rekha/executor/saga.py` (`compensate` delegado), `rekha/cli/main.py`
   (`rewind` command), `examples/crm-mock/server.py` (`crm.bulk_delete`),
   `examples/contracts/crm.yaml`.
 - Tests: `tests/rewind/test_service.py` (10 casos: orden, dry-run, fencing +

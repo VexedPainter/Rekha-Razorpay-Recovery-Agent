@@ -9,15 +9,15 @@ test fails and the build fails with it.
 exchange it is denied every capability that could turn a model's output into
 a financial fact directly:
 
-- `belay.ledger`     -- it cannot write evidence, so it cannot forge it.
-- `belay.approvals`  -- it cannot approve its own action (spec section 12,
+- `rekha.ledger`     -- it cannot write evidence, so it cannot forge it.
+- `rekha.approvals`  -- it cannot approve its own action (spec section 12,
                         no-self-approval, extended to the AI layer).
-- `belay.policy`     -- it cannot evaluate, relax, or bypass a limit.
-- `belay.executor`   -- it cannot execute; it can only ask the proxy to.
-- `belay.settlement` -- it cannot mark its own outcome verified.
-- `belay.finance.mandate` -- it cannot construct or reinterpret a mandate.
+- `rekha.policy`     -- it cannot evaluate, relax, or bypass a limit.
+- `rekha.executor`   -- it cannot execute; it can only ask the proxy to.
+- `rekha.settlement` -- it cannot mark its own outcome verified.
+- `rekha.finance.mandate` -- it cannot construct or reinterpret a mandate.
 
-`belay.finance.money` is deliberately NOT forbidden, and the reason is the line
+`rekha.finance.money` is deliberately NOT forbidden, and the reason is the line
 this whole test is drawing. A `MerchantMandate` is *authority*: if the AI layer
 could build one it could widen its own permissions, and the boundary would be
 decorative. `Money` is *arithmetic*: an immutable integer amount whose possession
@@ -25,7 +25,7 @@ grants nothing. Forbidding it would force the AI layer to pass raw ints around
 and have the control plane infer their units -- precisely the bug `Money` exists
 to prevent. Denying a value type buys no safety and costs correctness.
 
-What `recovery/` may otherwise import is deliberately narrow: `belay.errors` (to
+What `recovery/` may otherwise import is deliberately narrow: `rekha.errors` (to
 recognise a refusal it received) and the MCP client SDK (its one route
 outward, through the governed proxy). Everything else it needs, it must be
 handed.
@@ -52,12 +52,12 @@ AI_PACKAGE = REPO_ROOT / "recovery"
 #: capability the control plane exists to withhold from it.
 FORBIDDEN_ROOTS = frozenset(
     {
-        "belay.ledger",
-        "belay.approvals",
-        "belay.policy",
-        "belay.executor",
-        "belay.settlement",
-        # Note `belay.finance.mandate`, not `belay.finance`. The distinction is
+        "rekha.ledger",
+        "rekha.approvals",
+        "rekha.policy",
+        "rekha.executor",
+        "rekha.settlement",
+        # Note `rekha.finance.mandate`, not `rekha.finance`. The distinction is
         # between a *capability* and a *value type*:
         #
         #   `mandate` is authority. If the AI layer could construct or reinterpret
@@ -69,7 +69,7 @@ FORBIDDEN_ROOTS = frozenset(
         #   layer to pass raw ints around and have the control plane guess at
         #   their units -- which is exactly the class of bug `Money` exists to
         #   prevent. Denying a value type buys no safety and costs correctness.
-        "belay.finance.mandate",
+        "rekha.finance.mandate",
     }
 )
 
@@ -131,17 +131,17 @@ def test_the_boundary_check_actually_detects_a_violation() -> None:
     """
     sneaky = "\n".join(
         [
-            "import belay.errors",  # allowed
-            "from belay.ledger.store import LedgerStore",  # forbidden
+            "import rekha.errors",  # allowed
+            "from rekha.ledger.store import LedgerStore",  # forbidden
             "def f():",
-            "    import belay.policy.engine  # forbidden, function-local",
-            "    from belay.approvals import queue as q  # forbidden, aliased",
+            "    import rekha.policy.engine  # forbidden, function-local",
+            "    from rekha.approvals import queue as q  # forbidden, aliased",
         ]
     )
     assert _violations(_imported_modules(sneaky)) == {
-        "belay.ledger",
-        "belay.policy",
-        "belay.approvals",
+        "rekha.ledger",
+        "rekha.policy",
+        "rekha.approvals",
     }
 
 
@@ -152,21 +152,21 @@ def test_money_is_allowed_but_mandate_is_not() -> None:
     `Money` would push raw ints across the boundary, and permitting `mandate`
     would let the AI layer rewrite its own authority.
     """
-    assert _violations(_imported_modules("from belay.finance.money import Money")) == set()
-    assert _violations(_imported_modules("from belay.finance import money")) == set()
+    assert _violations(_imported_modules("from rekha.finance.money import Money")) == set()
+    assert _violations(_imported_modules("from rekha.finance import money")) == set()
     assert _violations(
-        _imported_modules("from belay.finance.mandate import MerchantMandate")
-    ) == {"belay.finance.mandate"}
-    assert _violations(_imported_modules("import belay.finance.mandate")) == {
-        "belay.finance.mandate"
+        _imported_modules("from rekha.finance.mandate import MerchantMandate")
+    ) == {"rekha.finance.mandate"}
+    assert _violations(_imported_modules("import rekha.finance.mandate")) == {
+        "rekha.finance.mandate"
     }
 
 
 def test_allowed_imports_are_not_flagged() -> None:
-    """`belay.errors` and the MCP SDK are the AI layer's legitimate imports."""
+    """`rekha.errors` and the MCP SDK are the AI layer's legitimate imports."""
     fine = "\n".join(
         [
-            "from belay.errors import BelayError",
+            "from rekha.errors import RekhaError",
             "from mcp import ClientSession",
             "from . import proposal",
             "import json",

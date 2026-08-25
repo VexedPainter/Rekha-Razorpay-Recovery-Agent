@@ -15,7 +15,7 @@ sin llamada de red, sin modelo de ML opaco.
 
 ## Decisiones
 
-- **`belay/policy/baseline.py`: `Welford` + `BaselineStore`, no una
+- **`rekha/policy/baseline.py`: `Welford` + `BaselineStore`, no una
   dependencia nueva.** `Welford` es un acumulador streaming de media/varianza
   (algoritmo de Welford, una pasada, memoria O(1)) -- no requiere `numpy` ni
   guardar el historial completo en memoria. `BaselineStore.stats(session_id,
@@ -41,7 +41,7 @@ sin llamada de red, sin modelo de ML opaco.
   `z >= z_score_threshold`. Con `stddev == 0` (todo el historial es un único
   valor constante): cualquier valor por encima de esa constante dispara --
   guard explícito contra división por cero, no un caso "nunca dispara".
-- **`Defaults.anomaly` (`belay/policy/model.py::AnomalyDefaults`) trae
+- **`Defaults.anomaly` (`rekha/policy/model.py::AnomalyDefaults`) trae
   valores que funcionan con cero configuración manual**: `enabled=True`,
   `min_samples=10`, `z_score_threshold=3.0`, `verdict="pause"`,
   `exclude=[]` (globs de tool para desactivar por tool, el equivalente de
@@ -77,18 +77,18 @@ sin llamada de red, sin modelo de ML opaco.
   the trailing baseline of 10.8"). No hay una razón separada "por qué
   pausó" en el CLI: el string de `reasons` ya lleva todos los números, y
   fluye tal cual hacia el evento `policy_evaluated` del ledger (spec §9) y
-  hacia `Plan.policy_reasons` que imprime `belay plan`/`belay run` -- no se
+  hacia `Plan.policy_reasons` que imprime `rekha plan`/`rekha run` -- no se
   necesitó un campo o subcomando nuevo para "mostrar el contexto del
   baseline al aprobador humano".
 - **`PolicyEngine.ledger: LedgerStore | None = None` es opcional, no un
   parámetro nuevo de `evaluate()`.** Mantiene la firma
   `evaluate(plan, policy) -> PolicyResult` sin cambios (spec §6.2), así que
-  `belay/cli/main.py`'s standalone `belay plan` (sin ledger real) y
-  `belay/rewind/service.py`'s `PolicyEngine` de compensaciones (que evalúa
+  `rekha/cli/main.py`'s standalone `rekha plan` (sin ledger real) y
+  `rekha/rewind/service.py`'s `PolicyEngine` de compensaciones (que evalúa
   planes de compensación, no llamadas nuevas del agente) siguen funcionando
   exactamente igual: sin `ledger`, la dimensión `anomaly` simplemente no
   contribuye nada (mismo comportamiento que antes de E10). Solo
-  `belay/proxy/lifecycle.py::Lifecycle.__post_init__` pasa
+  `rekha/proxy/lifecycle.py::Lifecycle.__post_init__` pasa
   `ledger=self.ledger` al construir el `PolicyEngine` real de la sesión --
   es el único call site que gobierna llamadas reales del agente en vivo.
 
@@ -97,9 +97,9 @@ sin llamada de red, sin modelo de ML opaco.
 - `docs/plan-v2.md` sección "E10 -- Statistical anomaly baselines (no manual
   thresholds)".
 - `docs/spec.md` §6 (Policies), §9.1/§9.2 (ledger).
-- Código: `belay/policy/baseline.py`, `belay/policy/engine.py`,
-  `belay/policy/model.py` (`AnomalyDefaults`), `belay/proxy/lifecycle.py`.
+- Código: `rekha/policy/baseline.py`, `rekha/policy/engine.py`,
+  `rekha/policy/model.py` (`AnomalyDefaults`), `rekha/proxy/lifecycle.py`.
 - Tests: `tests/policy/test_baseline.py`, `tests/policy/test_anomaly.py`.
 - Demo: `examples/demo_anomaly.py` -- 12 llamadas normales + 1 outlier de
-  50x, cero `Cap` configurado, `belay-conformance run --target belay
+  50x, cero `Cap` configurado, `rekha-conformance run --target rekha
   --level 3` sigue en PASSED tras el cambio.

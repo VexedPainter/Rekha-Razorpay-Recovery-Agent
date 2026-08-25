@@ -56,7 +56,7 @@ could never bind, so one of the two numbers is wrong).
 ### `action_describer` is injected and never defaulted
 
 The mandate needs an amount to enforce a ceiling, and only the integration knows
-Razorpay spells it `args["amount"]` in minor units. `belay/proxy/` must stay
+Razorpay spells it `args["amount"]` in minor units. `rekha/proxy/` must stay
 domain-agnostic, so this is injected — and **not** defaulted to a guess at field
 names, because reading the wrong key would silently enforce *no* ceiling, which is
 the worst available failure mode. A describer that raises fails closed.
@@ -69,7 +69,7 @@ For the entire life of the project, `Cap.per` existed in the model and
 sees one action, is worse than no cap: it reads as protection in a policy document
 while providing none. `Cap`'s own docstring diagnosed this and proposed the fix.
 
-`belay/policy/cumulative.py` implements it. Two design points carried over from
+`rekha/policy/cumulative.py` implements it. Two design points carried over from
 `QuotaTracker`, which had solved the same shape of problem for *counting*:
 
 - **The ledger is the only source of truth.** No second tally to drift, nothing a
@@ -96,12 +96,12 @@ most-restrictive-wins.
 ## 4. The AI proposes; nothing else
 
 `recovery/` is the only package permitted to call a model, and may not import
-`belay.ledger`, `belay.approvals`, `belay.policy`, `belay.executor`,
-`belay.settlement`, or `belay.finance.mandate`. Enforced by AST in
+`rekha.ledger`, `rekha.approvals`, `rekha.policy`, `rekha.executor`,
+`rekha.settlement`, or `rekha.finance.mandate`. Enforced by AST in
 `tests/test_layer_boundaries.py`, which includes a negative case pinning the
 detector — a guard that cannot fail proves nothing.
 
-`belay.finance.money` **is** permitted. The line is capability versus value type: a
+`rekha.finance.money` **is** permitted. The line is capability versus value type: a
 mandate is authority, and an AI layer that could construct one could widen its own
 permissions; `Money` is an immutable integer whose possession grants nothing.
 Forbidding it would force raw ints across the boundary and make the control plane
@@ -209,7 +209,7 @@ Two decisions that keep it credible:
   verdict. Out-of-scope entries are counted as `unrelated` and reported, because
   "we checked 5 of 500" is material context.
 
-`belay settle-verify` **exits non-zero** on a mismatch. A verification tool that
+`rekha settle-verify` **exits non-zero** on a mismatch. A verification tool that
 reports a discrepancy on stdout and exits 0 cannot gate anything.
 
 `LiveSettlementSource` bypasses the governed MCP proxy deliberately: the proxy gates

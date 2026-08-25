@@ -1,8 +1,8 @@
-# Belay — Threat Model
+# Rekha — Threat Model
 
-This document describes what Belay's Native Agent Gate and MCP proxy
+This document describes what Rekha's Native Agent Gate and MCP proxy
 actually protect against, grounded in the real code
-(`belay/supervisor/`, `belay/hooks/`, `belay/approvals/`, `belay/ledger/`),
+(`rekha/supervisor/`, `rekha/hooks/`, `rekha/approvals/`, `rekha/ledger/`),
 not a generic checklist. It complements
 [`docs/spec.md`](../spec.md)'s §12 "Security considerations" (the
 normative, protocol-level requirements) with the concrete, implementation-
@@ -17,71 +17,71 @@ its guarantees stop.
 │  Agent (LLM) / its host (Claude Code, Codex, ...)    │
 │         │ Bash, Edit/Write, native mcp__*            │
 │         ▼                                            │
-│  Host adapter (belay/hooks/*_adapter.py)              │
+│  Host adapter (rekha/hooks/*_adapter.py)              │
 │         │ HookEvent (normalized)                      │
 │         ▼                                            │
-│  belay/hooks/gate.py  ── decision ──▶  ApprovalQueue  │
+│  rekha/hooks/gate.py  ── decision ──▶  ApprovalQueue  │
 │         │                                    ▲        │
 │         ▼                                    │        │
-│  Local supervisor (belay/supervisor/) ───────┘        │
+│  Local supervisor (rekha/supervisor/) ───────┘        │
 │    - authenticated IPC (named pipe / Unix socket)     │
 │    - private capability token, private SQLite         │
 └─────────────────────────────────────────────────────┘
                        │
                        ▼
-          Human operator (`belay approvals`/`belay hooks approvals`)
+          Human operator (`rekha approvals`/`rekha hooks approvals`)
 ```
 
-The MCP proxy path (`belay run`/`belay wrap`) is a separate process
-boundary: agent → Belay proxy → real tool server, with Belay enforcing
-contracts (`belay/proxy/lifecycle.py`) before any call reaches the
+The MCP proxy path (`rekha run`/`rekha wrap`) is a separate process
+boundary: agent → Rekha proxy → real tool server, with Rekha enforcing
+contracts (`rekha/proxy/lifecycle.py`) before any call reaches the
 upstream. Both paths write to the same `LedgerStore`/`ApprovalQueue`
 storage layer (see the "MCP proxy vs. Native Agent Gate" section below for
 where their guarantees actually diverge).
 
 ## Assets
 
-- **The supervisor's capability token** (`belay_home()/keys/<install_id>.key`,
-  `belay/supervisor/addressing.py`) — an HMAC key used in the
+- **The supervisor's capability token** (`rekha_home()/keys/<install_id>.key`,
+  `rekha/supervisor/addressing.py`) — an HMAC key used in the
   `multiprocessing.connection` challenge-response handshake. Anyone who
   reads this file can talk to the supervisor as if they were an authorized
   hook client.
 - **The approvals/idempotency SQLite database**
-  (`belay_home()/data/<install_id>.db`) — the authoritative record of what's
+  (`rekha_home()/data/<install_id>.db`) — the authoritative record of what's
   pending, approved, or rejected. Direct write access here is equivalent to
   forging a human's approval.
-- **The ledger** (`belay.db` for the MCP path, the hooks database for the
+- **The ledger** (`rekha.db` for the MCP path, the hooks database for the
   Native Agent Gate path) — the hash-chained event log (spec §9). Its
-  integrity is what makes `belay verify` meaningful.
-- **Ed25519 signing keys** (`belay keygen`, E13/E19.6) — used for
+  integrity is what makes `rekha verify` meaningful.
+- **Ed25519 signing keys** (`rekha keygen`, E13/E19.6) — used for
   offline-verifiable evidence bundles and release signing. A leaked private
   key lets an attacker forge evidence or a "signed" release.
 
-## What Belay protects against
+## What Rekha protects against
 
 - **An agent silently causing an irreversible action.** Every MCP-proxied
   call is contract-checked, planned, and policy-evaluated before execution
-  (`belay/proxy/lifecycle.py`); every Bash/file-edit/native-MCP call under
+  (`rekha/proxy/lifecycle.py`); every Bash/file-edit/native-MCP call under
   the Native Agent Gate is classified or captured before it's allowed
-  (`belay/hooks/gate.py`).
-- **An agent approving its own action.** No code path in `belay/proxy` or
-  `belay/hooks` can transition an `ApprovalQueue` item to `approved` — that
-  capability exists only in `belay/cli/main.py`'s `approvals`/`hooks
+  (`rekha/hooks/gate.py`).
+- **An agent approving its own action.** No code path in `rekha/proxy` or
+  `rekha/hooks` can transition an `ApprovalQueue` item to `approved` — that
+  capability exists only in `rekha/cli/main.py`'s `approvals`/`hooks
   approvals` subcommands, which require a human to actually type a command
   (spec §12: "an agent MUST NOT be able to approve its own actions through
-  any tool Belay exposes").
+  any tool Rekha exposes").
 - **Silent tampering with the approval/ledger record.** The ledger is
-  hash-chained (spec §9.2); `belay verify` recomputes the chain and detects
+  hash-chained (spec §9.2); `rekha verify` recomputes the chain and detects
   a corrupted or reordered event. Approvals are durable, SQLite-backed
   state, not in-memory.
-- **An ordinary allowlisted command reading Belay's own secrets.**
-  `belay/hooks/gate.py::_touches_belay_home` denies even an otherwise-safe
-  command if any of its path arguments resolve into `belay_home()` — so a
-  plain `cat ~/.belay/keys/<id>.key` is refused even though `cat` itself is
+- **An ordinary allowlisted command reading Rekha's own secrets.**
+  `rekha/hooks/gate.py::_touches_rekha_home` denies even an otherwise-safe
+  command if any of its path arguments resolve into `rekha_home()` — so a
+  plain `cat ~/.rekha/keys/<id>.key` is refused even though `cat` itself is
   allowlisted.
 - **A supervisor that can't be reached, or won't answer.** The gate fails
   closed: an unreachable supervisor or a timed-out request is `deny`, never
-  `allow` and never a hang (`belay/supervisor/server.py`). A connected-but-
+  `allow` and never a hang (`rekha/supervisor/server.py`). A connected-but-
   silent client (local Slowloris) is actively timed out rather than left to
   block the worker pool.
 - **A replayed or duplicated tool-call event.** Event IDs are deduplicated
@@ -93,7 +93,7 @@ where their guarantees actually diverge).
   (not just the command string) — so approving a command in one
   repo/branch/session never approves the same string elsewhere.
 
-## What Belay explicitly does NOT protect against
+## What Rekha explicitly does NOT protect against
 
 - **An arbitrary process running as the same OS user as the agent.** The
   Native Agent Gate's authentication (HMAC over a named pipe/Unix socket)
@@ -111,20 +111,20 @@ where their guarantees actually diverge).
   trojanned one.
 - **Prompt injection as an authorization mechanism.** Per spec §12, model
   output is untrusted input; nothing an agent says can approve, relax
-  policy, or edit contracts. Belay does not attempt to detect or filter
+  policy, or edit contracts. Rekha does not attempt to detect or filter
   prompt injection itself — that's explicitly out of scope (spec §1), left
   to model-level guardrails.
 - **A malicious contract.** Contracts are hash-pinned per session (spec
-  §4.7) and MAY be signed, but Belay does not itself run a supply-chain
+  §4.7) and MAY be signed, but Rekha does not itself run a supply-chain
   review of a contract's authorship. Loading an attacker-authored contract
   that lies about a tool's reversibility is out of scope for the runtime to
   detect; this is a review/provenance problem (spec §12 "Contract supply
   chain").
-- **OS-level compromise, kernel exploits, or physical access.** Belay
+- **OS-level compromise, kernel exploits, or physical access.** Rekha
   assumes the OS's own process/file permission boundaries hold. It has no
   answer for a rooted machine, a compromised kernel, or physical access to
   the disk.
-- **Code-signing/notarization of released binaries.** `belay release
+- **Code-signing/notarization of released binaries.** `rekha release
   sign`/`verify` (E19.6) is authenticity signing (Ed25519) proving a bundle
   came from whoever holds the private key — it is not Windows
   Authenticode or Apple notarization, which need a paid, identity-verified
@@ -142,10 +142,10 @@ where their guarantees actually diverge).
 ## MCP proxy vs. Native Agent Gate: known divergence
 
 These are **not** the same governance engine. The MCP proxy
-(`belay/proxy/lifecycle.py`) enforces declared `Contract`/`effects` through
+(`rekha/proxy/lifecycle.py`) enforces declared `Contract`/`effects` through
 a real `PolicyEngine`, with intent-contract enforcement and per-identity
 quotas/anomaly baselines on every call. The Native Agent Gate
-(`belay/hooks/gate.py`) still has Bash governed by a static pattern
+(`rekha/hooks/gate.py`) still has Bash governed by a static pattern
 classifier (no `PolicyEngine`), and no anomaly-baseline tracking at all.
 An approval granted on one path cannot satisfy the other, even for what a
 human would call the same action.
@@ -154,7 +154,7 @@ human would call the same action.
 [ADR 0022](../adr/0022-r1-native-gate-session-fencing.md)/
 [ADR 0023](../adr/0023-r1-native-gate-quota.md)/
 [ADR 0024](../adr/0024-r1-native-gate-configurable-allowlist.md), R1's
-slices so far): `belay hooks install --contracts <file>` (opt-in, off by
+slices so far): `rekha hooks install --contracts <file>` (opt-in, off by
 default) makes native `Edit`/`Write`/`NotebookEdit` calls resolve against
 a real `ContractSet` the same way the MCP proxy's `resolve()` does -- no
 matching contract now denies (`contract_missing`), instead of the old
@@ -162,14 +162,14 @@ unconditional allow. The same file also reaches native
 `mcp__server__tool` calls: a declared, all-read contract now auto-allows
 (matching the proxy's own `readOnlyHint` rule) instead of pausing
 unconditionally -- everything else still pauses exactly as before, so
-this only ever narrows the default, never widens it. `belay hooks fence
+this only ever narrows the default, never widens it. `rekha hooks fence
 <session>` closes a hook session to every surface (Bash, file edits,
-native MCP) the same durable, cross-process way `belay rewind` already
-fences an MCP session. `belay hooks install --quota-max/--quota-window`
+native MCP) the same durable, cross-process way `rekha rewind` already
+fences an MCP session. `rekha hooks install --quota-max/--quota-window`
 caps how many approved risky actions one OS user (identity, for the
 hooks world -- see ADR 0023 for why this differs from the MCP proxy's
 `--initiated-by`) can accumulate per window before a new pause escalates
-to a hard deny. `belay hooks install --allowlist-extra <file>` lets an
+to a hard deny. `rekha hooks install --allowlist-extra <file>` lets an
 operator add their own literal, additive entries to Bash's safe-read
 allowlist -- checked after the built-in patterns and after the same
 shell-metacharacter guard, so it can only turn a PAUSE into an ALLOW for
@@ -184,13 +184,13 @@ arbitrary shell text, a genuinely different design problem from every
 slice above, tracked as open R1 scope. Until that's resolved, treat the
 Native Agent Gate as a **materially weaker, best-effort** governance
 layer compared to the MCP proxy — appropriate for routine coding-session
-safety net, not a substitute for wrapping a tool server through `belay
+safety net, not a substitute for wrapping a tool server through `rekha
 run` when the stakes are high.
 
 ## A note on unformalized invariants
 
-Code across `belay/hooks/`, `belay/supervisor/`, `belay/db/models.py`, and
-`belay/cli/main.py` uses identifiers like `TRUTH-004`, `TRUTH-010`,
+Code across `rekha/hooks/`, `rekha/supervisor/`, `rekha/db/models.py`, and
+`rekha/cli/main.py` uses identifiers like `TRUTH-004`, `TRUTH-010`,
 `ARCH-00X`, and `FILE-00X`. These used to be cited as if `docs/spec.md`
 defined them (it doesn't — verified line-by-line, see
 [ADR 0020](../adr/0020-extended-requirement-catalog.md) for the full

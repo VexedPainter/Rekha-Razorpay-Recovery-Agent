@@ -1,4 +1,4 @@
-# Belay Specification
+# Rekha Specification
 
 **Version:** 0.1-draft
 **Status:** Draft for public review
@@ -11,7 +11,7 @@ The key words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted 
 
 ## 1. Purpose and scope
 
-Belay defines an interoperable layer that makes AI-agent tool execution **declared, previewable, gated, and reversible by contract**. It specifies:
+Rekha defines an interoperable layer that makes AI-agent tool execution **declared, previewable, gated, and reversible by contract**. It specifies:
 
 1. A **contract format** describing each tool's reversibility (§4).
 2. An **effect-plan protocol** for dry-running tool calls (§5).
@@ -21,15 +21,15 @@ Belay defines an interoperable layer that makes AI-agent tool execution **declar
 6. A verifiable, append-only **event ledger** (§9).
 7. **Rewind semantics** for undoing a session (§10).
 
-Out of scope: authentication/authorization of agents (gateways do this), model-level guardrails, observability/tracing, and the transport internals of MCP itself. Belay composes with all of them.
+Out of scope: authentication/authorization of agents (gateways do this), model-level guardrails, observability/tracing, and the transport internals of MCP itself. Rekha composes with all of them.
 
-A conforming implementation ("a Belay") is typically deployed as an MCP proxy: agents connect to Belay; Belay connects to the real tool servers. Nothing in this spec requires MCP — the contract and ledger formats are transport-agnostic — but MCP terminology is used throughout and Appendix C defines the MCP mapping.
+A conforming implementation ("a Rekha") is typically deployed as an MCP proxy: agents connect to Rekha; Rekha connects to the real tool servers. Nothing in this spec requires MCP — the contract and ledger formats are transport-agnostic — but MCP terminology is used throughout and Appendix C defines the MCP mapping.
 
 ## 2. Terminology
 
 - **Tool** — a callable operation exposed by a server (e.g. `crm.create_record`).
 - **Contract** — the declared reversibility metadata for one tool (§4).
-- **Action** — one attempted tool call passing through Belay.
+- **Action** — one attempted tool call passing through Rekha.
 - **Effect** — one externally observable consequence of an action (§5.2).
 - **Plan** — the predicted set of effects of an action, produced without executing it.
 - **Session** — a correlated sequence of actions by one agent run, identified by `session_id`.
@@ -41,7 +41,7 @@ A conforming implementation ("a Belay") is typically deployed as an MCP proxy: a
 ## 3. Architecture overview
 
 ```
-Agent (LLM) ──MCP──▶ BELAY ──MCP──▶ tool servers
+Agent (LLM) ──MCP──▶ REKHA ──MCP──▶ tool servers
                        │
    ┌───────────────────┼──────────────────────┐
    │ contract registry │ policy engine        │
@@ -70,7 +70,7 @@ Every numbered stage MUST emit its ledger event even when the outcome is a denia
 Contracts are YAML or JSON documents, one per tool, collected in a contract set. Canonical form is JSON; YAML is an authoring convenience.
 
 ```yaml
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: crm.create_record
 summary: Creates a CRM record
 reversibility: reversible          # reversible | irreversible | conditional
@@ -107,7 +107,7 @@ Argument mapping and predicates use a minimal, side-effect-free expression langu
 
 - `$args.<path>` — arguments of the original call.
 - `$result.<path>` — result payload of the original call.
-- `$context.<key>` — Belay-provided context: `session_id`, `step_seq`, `timestamp`, `principal`.
+- `$context.<key>` — Rekha-provided context: `session_id`, `step_seq`, `timestamp`, `principal`.
 - `$state.<path>` — a pre-execution snapshot captured by an optional `capture` block (see §4.4).
 - Literals, `==`, `!=`, `<`, `>`, `in`, `and`, `or`, `not`, and `coalesce(a, b)`.
 
@@ -131,14 +131,14 @@ The capture call MUST be read-only (its own contract MUST declare `effects: []` 
 
 ### 4.5 Idempotency
 
-If `idempotent: true`, retries of the identical call are safe. If `idempotency_key` is declared, Belay MUST deduplicate: a second execution with the same key within the same session MUST return the recorded result of the first without calling the tool again. This mirrors event-UUID idempotency in event-sourced systems and is REQUIRED for at-least-once transports.
+If `idempotent: true`, retries of the identical call are safe. If `idempotency_key` is declared, Rekha MUST deduplicate: a second execution with the same key within the same session MUST return the recorded result of the first without calling the tool again. This mirrors event-UUID idempotency in event-sourced systems and is REQUIRED for at-least-once transports.
 
-### 4.6 The default rule (the point of Belay)
+### 4.6 The default rule (the point of Rekha)
 
 For a tool with **no contract**:
 
 - If its MCP annotations declare `readOnlyHint: true` ⇒ treat as `effects: []`, allow.
-- Otherwise ⇒ Belay MUST refuse to proxy the call with error `contract_missing` (§11), unless the operator has explicitly configured `unsafe_passthrough: true` per tool, which MUST be recorded in every affected ledger event.
+- Otherwise ⇒ Rekha MUST refuse to proxy the call with error `contract_missing` (§11), unless the operator has explicitly configured `unsafe_passthrough: true` per tool, which MUST be recorded in every affected ledger event.
 
 Undeclared destructive capability is a configuration error, not a runtime surprise.
 
@@ -150,7 +150,7 @@ A contract set MUST carry a content hash (`set_hash`, SHA-256 over canonical JSO
 
 ### 5.1 Plan request/response
 
-A plan predicts effects without executing. Belay exposes:
+A plan predicts effects without executing. Rekha exposes:
 
 ```
 plan(tool, args, session_id) -> Plan
@@ -182,21 +182,21 @@ plan(tool, args, session_id) -> Plan
 `basis` declares how the prediction was obtained, in decreasing strength:
 
 1. `native_dry_run` — the tool supports a real dry-run and it was used.
-2. `dry_run` — Belay simulated (e.g. `EXPLAIN`/`SELECT COUNT(*)` for SQL).
+2. `dry_run` — Rekha simulated (e.g. `EXPLAIN`/`SELECT COUNT(*)` for SQL).
 3. `contract` — static declaration from the contract only.
 
 Implementations MUST NOT present `contract`-basis counts as exact. A plan is honest about its own uncertainty: unpredictable aspects go in `unknown[]`, and policy treats unknown as worst-case (§6.3).
 
 ### 5.4 Plan/execute binding
 
-Execution MAY reference a prior `plan_id`. If it does, Belay MUST re-validate that args are byte-identical; a mismatch is `plan_mismatch`. Plans expire (default 10 minutes) to bound TOCTOU windows; expired plans MUST be re-planned.
+Execution MAY reference a prior `plan_id`. If it does, Rekha MUST re-validate that args are byte-identical; a mismatch is `plan_mismatch`. Plans expire (default 10 minutes) to bound TOCTOU windows; expired plans MUST be re-planned.
 
 ## 6. Policies
 
 ### 6.1 Policy document
 
 ```yaml
-belay_policy: "0.1"
+rekha_policy: "0.1"
 defaults:
   irreversible: pause              # allow | pause | deny
   conditional_unmet: pause
@@ -254,7 +254,7 @@ States: `pending → approved | rejected | expired`. Transitions are one-way. De
 
 ### 7.2 Approver identity
 
-The approving principal MUST be authenticated by the embedding system and MUST be recorded (`approved_by`). Belay does not define auth; it defines that *anonymous approval is non-conforming*. An agent MUST NOT be able to approve its own actions through any tool Belay exposes.
+The approving principal MUST be authenticated by the embedding system and MUST be recorded (`approved_by`). Rekha does not define auth; it defines that *anonymous approval is non-conforming*. An agent MUST NOT be able to approve its own actions through any tool Rekha exposes.
 
 ### 7.3 Agent experience
 
@@ -279,11 +279,11 @@ Normative order within a step:
 5. **compensation_registered** — the concrete inverse call is materialized by evaluating `undo.args` against `$args/$result/$state` **now**, and appended. Rewind never re-evaluates expressions against live state.
 6. **committed**.
 
-A crash between 3 and 4 leaves a journaled-but-unresolved step; on recovery Belay MUST reconcile via the idempotency key (re-issue and deduplicate) or, if impossible, mark the step `indeterminate` — a first-class state that rewind reports honestly.
+A crash between 3 and 4 leaves a journaled-but-unresolved step; on recovery Rekha MUST reconcile via the idempotency key (re-issue and deduplicate) or, if impossible, mark the step `indeterminate` — a first-class state that rewind reports honestly.
 
 ### 8.2 Sagas (multi-step workflows)
 
-A session's committed steps form a saga. There is no distributed lock and no two-phase commit across foreign APIs — compensation is the consistency mechanism, as in classic saga literature. On a declared workflow failure (agent aborts, step N fails irrecoverably), Belay MAY auto-unwind steps N-1…1 if the session was opened with `auto_compensate: true`; otherwise unwinding is an explicit rewind (§10).
+A session's committed steps form a saga. There is no distributed lock and no two-phase commit across foreign APIs — compensation is the consistency mechanism, as in classic saga literature. On a declared workflow failure (agent aborts, step N fails irrecoverably), Rekha MAY auto-unwind steps N-1…1 if the session was opened with `auto_compensate: true`; otherwise unwinding is an explicit rewind (§10).
 
 ### 8.3 Concurrency
 
@@ -313,7 +313,7 @@ Event types (complete for 0.1): `session_started`, `contract_set_pinned`, `plan_
 
 ### 9.2 Evidence
 
-`hash = SHA-256(canonical(event without hash) || prev_hash)`. The chain makes tampering *evident*, not impossible — Belay claims verifiability, not immutability of the storage medium. A `verify` operation MUST recompute the chain and cross-check: every `committed` step has its journal, capture (if contracted), result, and registered compensation; every executed compensation references a committed step. This is the analogue of commit-evidence verification in event-sourced systems: coherence of persisted evidence, not a digital signature.
+`hash = SHA-256(canonical(event without hash) || prev_hash)`. The chain makes tampering *evident*, not impossible — Rekha claims verifiability, not immutability of the storage medium. A `verify` operation MUST recompute the chain and cross-check: every `committed` step has its journal, capture (if contracted), result, and registered compensation; every executed compensation references a committed step. This is the analogue of commit-evidence verification in event-sourced systems: coherence of persisted evidence, not a digital signature.
 
 ### 9.3 Redaction
 
@@ -351,7 +351,7 @@ Codes (complete for 0.1): `contract_missing`, `contract_invalid`, `expression_in
 
 ## 12. Security considerations
 
-- **Prompt injection ≠ authorization.** Model output is untrusted input. Nothing an agent says can approve, relax policy, or edit contracts; those surfaces MUST NOT be exposed as tools to the protected agent. (Belay MAY expose read-only `plan`/`status` tools to the agent.)
+- **Prompt injection ≠ authorization.** Model output is untrusted input. Nothing an agent says can approve, relax policy, or edit contracts; those surfaces MUST NOT be exposed as tools to the protected agent. (Rekha MAY expose read-only `plan`/`status` tools to the agent.)
 - **Contract supply chain.** Contracts alter what "undo" means; a malicious contract is an attack. Contract sets SHOULD be signed, MUST be hash-pinned per session (§4.7), and changes SHOULD go through review — contracts are code-adjacent even though they are data.
 - **TOCTOU.** Plans expire (§5.4); conditional contracts re-check `conditions` at execution time, not plan time.
 - **Approver binding.** Approval UIs MUST display the plan actually bound to the approval (`plan_id`), not a paraphrase, to prevent bait-and-switch via re-planning.
@@ -372,7 +372,7 @@ A public conformance suite accompanies the spec. Test categories map 1:1 to norm
 
 ## 14. Versioning
 
-`belay_contract`, `belay_policy`, and event envelopes carry the spec version. 0.x versions may break; from 1.0, additive-only within a major. Unknown fields MUST be preserved (ledger) and MUST be rejected (contracts, policies) — evidence is tolerant, authority is strict.
+`rekha_contract`, `rekha_policy`, and event envelopes carry the spec version. 0.x versions may break; from 1.0, additive-only within a major. Unknown fields MUST be preserved (ledger) and MUST be rejected (contracts, policies) — evidence is tolerant, authority is strict.
 
 ---
 
@@ -381,11 +381,11 @@ A public conformance suite accompanies the spec. Test categories map 1:1 to norm
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://belay.dev/schemas/contract-0.1.json",
+  "$id": "https://rekha.dev/schemas/contract-0.1.json",
   "type": "object",
-  "required": ["belay_contract", "tool", "reversibility", "effects"],
+  "required": ["rekha_contract", "tool", "reversibility", "effects"],
   "properties": {
-    "belay_contract": { "const": "0.1" },
+    "rekha_contract": { "const": "0.1" },
     "tool": { "type": "string", "minLength": 1 },
     "summary": { "type": "string" },
     "reversibility": { "enum": ["reversible", "irreversible", "conditional"] },
@@ -457,8 +457,8 @@ Agent asks to clean up stale CRM records.
 
 ## Appendix C — MCP mapping
 
-- Belay is an MCP server to the agent and an MCP client to tool servers.
+- Rekha is an MCP server to the agent and an MCP client to tool servers.
 - `readOnlyHint: true` ⇒ implicit `effects: [read]` contract (§4.6).
-- `destructiveHint: true` with no Belay contract ⇒ `contract_missing`.
+- `destructiveHint: true` with no Rekha contract ⇒ `contract_missing`.
 - `idempotentHint` maps to `idempotent` but MUST be confirmed in the contract to be relied upon; hints are advisory, contracts are authoritative.
 - `plan`, `status`, and `approvals` surfaces are exposed to *operators*, not to the protected agent, except read-only `plan`/`status` which MAY be agent-visible.

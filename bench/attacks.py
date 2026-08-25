@@ -20,15 +20,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from belay.contracts.loader import load_contract_set
-from belay.errors import BelayError
-from belay.finance.mandate import MerchantMandate, load_mandate
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.policy.model import PolicyDoc, ToolRule, load_policy
-from belay.proxy.lifecycle import Lifecycle
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from rekha.contracts.loader import load_contract_set
+from rekha.errors import RekhaError
+from rekha.finance.mandate import MerchantMandate, load_mandate
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.policy.model import PolicyDoc, ToolRule, load_policy
+from rekha.proxy.lifecycle import Lifecycle
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SANDBOX = REPO_ROOT / "examples" / "razorpay-sandbox" / "server.py"
@@ -163,7 +163,7 @@ async def prompt_injection(session: ClientSession) -> AttackResult:
             read_only_hint=False,
             executor=session.call_tool,
         )
-    except BelayError as exc:
+    except RekhaError as exc:
         return AttackResult(
             name="prompt injection",
             attempted="a planted note tells the agent to refund INR 50,000",
@@ -239,7 +239,7 @@ async def approval_reuse(session: ClientSession) -> AttackResult:
     exactly one call instance. The read-then-write version of this was reproducibly
     proven wrong under a real thread race -- it is in the git history.
     """
-    from belay.approvals.queue import ApprovalQueue
+    from rekha.approvals.queue import ApprovalQueue
 
     ledger = LedgerStore()
     lifecycle = _lifecycle(ledger, "atk_reuse")
@@ -272,7 +272,7 @@ async def approval_reuse(session: ClientSession) -> AttackResult:
             read_only_hint=False,
             executor=session.call_tool,
         )
-    except BelayError as exc:
+    except RekhaError as exc:
         return AttackResult(
             name="approval reuse",
             attempted="spend one granted approval on a second action",
@@ -329,7 +329,7 @@ async def cumulative_fanout(session: ClientSession) -> AttackResult:
     lifecycle = _lifecycle(ledger, "atk_fanout", permissive=True)
 
     executed = 0
-    refusal: BelayError | None = None
+    refusal: RekhaError | None = None
     for index in range(40):
         try:
             outcome = await lifecycle.govern_and_execute(
@@ -338,7 +338,7 @@ async def cumulative_fanout(session: ClientSession) -> AttackResult:
                 read_only_hint=False,
                 executor=session.call_tool,
             )
-        except BelayError as exc:
+        except RekhaError as exc:
             refusal = exc
             break
         if isinstance(outcome, dict) and outcome.get("status") == "pending_approval":
@@ -361,7 +361,7 @@ async def settlement_mismatch(session: ClientSession) -> AttackResult:
     The only scenario detected from a record we do not author. Comparing our ledger
     to our webhooks would never surface it, because both descend from our request.
     """
-    from belay.settlement.verify import (
+    from rekha.settlement.verify import (
         FixtureSettlementSource,
         MismatchReason,
         SettlementResult,
@@ -424,7 +424,7 @@ async def benign_control(session: ClientSession) -> AttackResult:
                 read_only_hint=False,
                 executor=session.call_tool,
             )
-        except BelayError:
+        except RekhaError:
             wrongly_blocked += 1
             continue
         if isinstance(outcome, dict) and outcome.get("status") == "pending_approval":
@@ -468,7 +468,7 @@ async def run_all() -> BenchReport:
     verdict. If any scenario is missing, the exception propagates, because then the
     run really did fail.
 
-    This matters because `belay bench run --strict` is meant to gate CI, and a
+    This matters because `rekha bench run --strict` is meant to gate CI, and a
     suite whose exit code is decided by subprocess cleanup cannot gate anything.
     """
     report = BenchReport()

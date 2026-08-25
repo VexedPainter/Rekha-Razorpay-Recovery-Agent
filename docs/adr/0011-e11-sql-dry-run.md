@@ -17,10 +17,10 @@ declare the new optional `sql` hint.
 - **Precedence: `native_dry_run > sql_simulator > dry_run > contract`.**
   Spec §5.3 ranks bases "in decreasing strength" and ADR 0004 already fixed
   `native_dry_run` as strongest (the tool's own real dry-run beats anything
-  Belay can infer from the outside) and `contract` as the weakest fallback
+  Rekha can infer from the outside) and `contract` as the weakest fallback
   (a static declaration, not an observation). `sql_simulator` sits directly
   above `contract`, below `native_dry_run`: it is a real, measured count --
-  strictly better evidence than a declared guess -- but it is still Belay
+  strictly better evidence than a declared guess -- but it is still Rekha
   *simulating* against the tool's storage from the outside, not the tool
   itself reporting its own dry-run result (which may account for
   application-level logic a raw SQL statement cannot see, e.g. soft-delete
@@ -36,7 +36,7 @@ declare the new optional `sql` hint.
   present, exactly as documented there.
   Test: `tests/planner/test_planner.py::test_native_dry_run_takes_precedence_over_sql_simulator`.
 - **`sql_simulator` only fires when both sides opt in.** A contract's `sql`
-  hint (`belay/contracts/model.py::SqlHint`) is necessary but not
+  hint (`rekha/contracts/model.py::SqlHint`) is necessary but not
   sufficient -- `PlanningSession.sql_runner` must also be supplied by the
   caller (the proxy lifecycle, or a CLI/demo script that owns a real
   `sqlalchemy.Engine`). No `sql_runner` -> silently falls back to
@@ -48,8 +48,8 @@ declare the new optional `sql` hint.
   real engine, same shape as wiring `native_dry_run`.
   Test: `tests/planner/test_planner.py::test_no_sql_runner_supplied_falls_back_to_contract_basis`.
 - **The `sql` hint is one optional, additive field on `Contract`
-  (`belay/contracts/model.py::SqlHint`), not a new top-level document or a
-  parallel JSON Schema.** E1 built `belay/contracts/model.py` as a Pydantic
+  (`rekha/contracts/model.py::SqlHint`), not a new top-level document or a
+  parallel JSON Schema.** E1 built `rekha/contracts/model.py` as a Pydantic
   mirror of spec Appendix A's JSON Schema (validated via
   `Contract.model_validate`, not a separate `jsonschema` library call), so
   "extend the JSON Schema additively" means exactly that: one new
@@ -87,13 +87,13 @@ declare the new optional `sql` hint.
   `PRAGMA`, `INSERT`, no-verb-at-all, and an empty statement).
 - **Bind params reuse the existing expression language (spec §4.3), not a
   second templating syntax.** `SqlHint.params` maps each `:name` bind
-  parameter to a Belay expression string (e.g. `"$args.before_year"`),
-  parsed by the same `belay.contracts.expressions.parse`/`evaluate` that
+  parameter to a Rekha expression string (e.g. `"$args.before_year"`),
+  parsed by the same `rekha.contracts.expressions.parse`/`evaluate` that
   already governs `undo.args` and `conditions` -- so the same
   `expression_invalid` security boundary (no `eval`/`exec`, no dunder
   access, closed grammar) covers SQL bind values for free, with no new
   code to audit for injection. `_sql_effects()` in
-  `belay/planner/planner.py` evaluates every `params` entry against a
+  `rekha/planner/planner.py` evaluates every `params` entry against a
   `{"args": ..., "context": {}}` scope before calling `sql_runner`, so the
   values sqlalchemy binds are always plain Python literals from a closed
   grammar, never a string interpolated into the SQL text itself --
@@ -103,7 +103,7 @@ declare the new optional `sql` hint.
   mechanism).
 - **Mechanism: `BEGIN` (`engine.connect()` + `conn.begin()`), execute, and
   *always* `rollback()` in `finally` -- never `commit()`, on any path.**
-  `belay/planner/adapters/sql.py::simulate_row_count` is the only place
+  `rekha/planner/adapters/sql.py::simulate_row_count` is the only place
   that touches a live DB connection for this feature. `SELECT` statements
   report the fetched row count; `UPDATE`/`DELETE` report the DBAPI's real
   `rowcount`, which SQLite computes as part of executing the statement
@@ -133,7 +133,7 @@ declare the new optional `sql` hint.
 - **Honest dialect-support note (do not overclaim Postgres).**
   `simulate_row_count`/`make_sql_runner` are written entirely against
   SQLAlchemy's dialect-agnostic `Engine`/`Connection`/`text()` API -- no
-  SQLite-specific call anywhere in `belay/planner/adapters/sql.py`. In
+  SQLite-specific call anywhere in `rekha/planner/adapters/sql.py`. In
   principle this should work unmodified against Postgres (`rowcount` on
   `UPDATE`/`DELETE`, `BEGIN`/`ROLLBACK` semantics, and bind-parameter
   passing are all standard DBAPI/SQLAlchemy behavior Postgres supports).
@@ -146,14 +146,14 @@ declare the new optional `sql` hint.
   a real Postgres DSN before trusting the row counts in production; that
   verification is not part of this entrega.
 - **`EffectEstimate.basis` gains the `"sql_simulator"` literal; no special
-  case elsewhere.** `belay/planner/model.py::Basis` and `Plan`/
+  case elsewhere.** `rekha/planner/model.py::Basis` and `Plan`/
   `EffectEstimate` needed no other change -- `sql_simulator`-basis effects
   are plain `EffectEstimate`s like any other, `estimate=False` (this is a
   measured count, spec §5.3's "MUST NOT present contract-basis counts as
   exact" simply does not apply because this is not the `contract` basis),
   and `_confidence()` treats `sql_simulator` the same as `native_dry_run`
   (`"high"`, absent unknowns) -- both are real observations, not
-  declarations. `belay/policy/engine.py` needs zero changes: it already
+  declarations. `rekha/policy/engine.py` needs zero changes: it already
   reads `EffectEstimate.upper_bound()`/`.count` generically regardless of
   `basis`, which is the whole point of integrating through the existing
   model instead of adding an adapter-specific code path (task requirement:
@@ -170,10 +170,10 @@ declare the new optional `sql` hint.
 - `docs/adr/0004-e4-planner-policy.md` (the precedence and
   `PlanningSession`-callable-injection pattern this ADR extends, not
   inverts).
-- Code: `belay/contracts/model.py` (`SqlHint`, `_validate_sql_statement`),
-  `belay/planner/model.py` (`Basis`, `SqlRunner`,
-  `PlanningSession.sql_runner`), `belay/planner/planner.py`
-  (`_sql_effects`), `belay/planner/adapters/sql.py`
+- Code: `rekha/contracts/model.py` (`SqlHint`, `_validate_sql_statement`),
+  `rekha/planner/model.py` (`Basis`, `SqlRunner`,
+  `PlanningSession.sql_runner`), `rekha/planner/planner.py`
+  (`_sql_effects`), `rekha/planner/adapters/sql.py`
   (`simulate_row_count`, `make_sql_runner`).
 - Tests: `tests/contracts/test_model.py` (sql hint validation, additive
   regression), `tests/planner/adapters/test_sql.py` (real SQLite fixture,

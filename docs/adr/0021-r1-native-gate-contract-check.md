@@ -6,8 +6,8 @@ Accepted, implemented (opt-in, off by default).
 
 ## Context
 
-An audit comparing `belay/proxy/lifecycle.py` (the MCP proxy's governance
-engine) against `belay/hooks/gate.py` (the Native Agent Gate) found they
+An audit comparing `rekha/proxy/lifecycle.py` (the MCP proxy's governance
+engine) against `rekha/hooks/gate.py` (the Native Agent Gate) found they
 are not the same governance model wearing two hats -- they are
 structurally different, and the single starkest divergence was this:
 
@@ -33,26 +33,26 @@ not resolve.
 
 ## Decision
 
-`belay hooks install` gets a new, optional `--contracts <file>` flag.
+`rekha hooks install` gets a new, optional `--contracts <file>` flag.
 
 - **Omitted (default):** zero behavior change. Every existing install of
-  `belay hooks install` keeps today's allow-by-default for native file
+  `rekha hooks install` keeps today's allow-by-default for native file
   edits, exactly as before this ADR.
 - **Provided:** the file is loaded and validated as a real `ContractSet`
-  (the same loader `belay wrap --contracts` uses) at install time --
+  (the same loader `rekha wrap --contracts` uses) at install time --
   invalid contracts fail the install immediately, nothing is written. Its
   resolved path is recorded in a new per-install pointer file
-  (`SupervisorIdentity.contracts_pointer_path`, under `belay_home()`,
+  (`SupervisorIdentity.contracts_pointer_path`, under `rekha_home()`,
   same private-storage rule as the capability token and approvals DB).
   The supervisor loads it once at construction (best-effort: a missing or
   broken pointed-to file falls back to `None`/no-check rather than
   crashing the supervisor or fail-closed denying everything -- this is
   opt-in extra strictness, not a security invariant the process must
   refuse to start without).
-- `belay/hooks/gate.py::evaluate_file_edit` gained a `contract_set:
+- `rekha/hooks/gate.py::evaluate_file_edit` gained a `contract_set:
   ContractSet | None = None` keyword parameter. When set, the event's
   `tool_name` (e.g. `"Write"`) is resolved against it the same way
-  `belay/proxy/lifecycle.py::resolve()` resolves an MCP tool name. No
+  `rekha/proxy/lifecycle.py::resolve()` resolves an MCP tool name. No
   match is a hard `deny` with `contract_missing` in the reason -- **not**
   queued for approval, matching the MCP proxy's treatment of
   `contract_missing` as a configuration problem for the operator to fix
@@ -66,7 +66,7 @@ An operator declares a contract for a native tool the same way they'd
 declare one for any MCP tool, keyed by the literal host tool name:
 
 ```yaml
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: Write
 reversibility: irreversible
 effects:
@@ -76,21 +76,21 @@ effects:
 
 ### Second slice: native MCP calls narrow, never widen, the default pause
 
-The same `--contracts` file also reaches `belay/hooks/gate.py::evaluate_mcp_call`.
+The same `--contracts` file also reaches `rekha/hooks/gate.py::evaluate_mcp_call`.
 Unlike the file-edit case, native MCP calls' existing default (pause,
 unconditionally) is already the *safe* direction -- there is no unsafe
 default to fix here. The opportunity is accuracy, not safety: when the
 exact `mcp__server__tool` identity resolves to a declared contract whose
 every effect is `type: "read"`, it is auto-allowed without ever touching
 the approval queue -- the same provable-safe-read case
-`belay/proxy/lifecycle.py::resolve()` already auto-allows via
+`rekha/proxy/lifecycle.py::resolve()` already auto-allows via
 `readOnlyHint`. Anything else (no contract, or a contract with any
 non-read effect) still pauses exactly as before this slice existed --
 `contract_set` only ever narrows the pause-everything default, it never
 turns a pause into an allow without positive, declared evidence.
 
 ```yaml
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: mcp__github__list_issues
 reversibility: irreversible
 effects:
@@ -126,7 +126,7 @@ contract falls through to allow, and contract_missing takes priority over
 an unrelated "no path argument" error) and `TestMcpCallContractCheck`
 (five cases: unchanged default, all-read contract auto-allows without
 touching the queue, a contract with a non-read effect still pauses, no
-matching contract still pauses, and a server literally named "belay" gets
+matching contract still pauses, and a server literally named "rekha" gets
 no free pass). `tests/supervisor/test_contract_set_loading.py` (the
 pointer-file load path: absent, valid, missing target, invalid content,
 empty). `tests/cli/test_hooks_lifecycle.py::TestInstallWithContracts`,

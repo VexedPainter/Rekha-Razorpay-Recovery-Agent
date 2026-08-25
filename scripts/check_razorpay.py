@@ -5,7 +5,7 @@ decisions and both are cheaper to learn now than at Phase 8:
 
 1. **Do the credentials work at all?** A 401 here is a typo in `.env`, not a
    bug in anything we wrote.
-2. **Does test mode return settlement data?** `belay/settlement/` reconciles
+2. **Does test mode return settlement data?** `rekha/settlement/` reconciles
    three legs -- what we authorized, what Razorpay reported, and what actually
    settled. If test mode never produces settlements, the third leg has to be
    fixture-driven, and the README must say so plainly rather than implying a

@@ -1,6 +1,6 @@
 """Resolve a `--target` CLI string to a `ConformanceTarget` instance.
 
-`belay` is the built-in alias for the reference implementation in this
+`rekha` is the built-in alias for the reference implementation in this
 repo. Any other implementation names itself with a dotted `module:Class`
 path -- no plugin registry needed for "runnable against any implementation".
 """
@@ -12,7 +12,7 @@ import importlib
 from conformance.target import ConformanceTarget
 
 _BUILTIN = {
-    "belay": "conformance.targets.belay_target:BelayConformanceTarget",
+    "rekha": "conformance.targets.rekha_target:RekhaConformanceTarget",
 }
 
 

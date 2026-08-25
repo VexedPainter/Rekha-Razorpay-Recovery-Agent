@@ -7,18 +7,18 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from belay.clock import FixedClock
-from belay.contracts.model import Contract as ContractModel
-from belay.contracts.model import ContractSet, Effect
-from belay.db.models import EventRow
-from belay.ledger.store import LedgerStore
-from belay.planner.model import EffectEstimate, Plan
-from belay.policy.engine import PolicyEngine
-from belay.policy.model import Cap, CapMatch, Defaults, PolicyDoc, QuotaDefaults, ToolRule
-from belay.policy.quota import QuotaTracker, parse_window
-from belay.proxy.lifecycle import Lifecycle
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from rekha.clock import FixedClock
+from rekha.contracts.model import Contract as ContractModel
+from rekha.contracts.model import ContractSet, Effect
+from rekha.db.models import EventRow
+from rekha.ledger.store import LedgerStore
+from rekha.planner.model import EffectEstimate, Plan
+from rekha.policy.engine import PolicyEngine
+from rekha.policy.model import Cap, CapMatch, Defaults, PolicyDoc, QuotaDefaults, ToolRule
+from rekha.policy.quota import QuotaTracker, parse_window
+from rekha.proxy.lifecycle import Lifecycle
 from sqlalchemy import update
 from sqlalchemy.orm import Session as DBSession
 
@@ -328,7 +328,7 @@ def test_parse_window_supports_common_suffixes() -> None:
 @pytest.mark.anyio
 async def test_end_to_end_nth_bulk_action_paused_purely_by_quota_no_cap() -> None:
     contract = ContractModel(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="mail.send",
         reversibility="irreversible",
         effects=[Effect(type="send", resource="email.message", count="1")],
@@ -388,10 +388,10 @@ async def test_approved_retry_under_new_step_seq_still_counts_toward_quota() -> 
     re-evaluates policy under `step_seq=2` (only `ApprovalStage.check` -- keyed
     by `plan_id` -- lets it proceed). `QuotaTracker` must follow that same
     `plan_id` link, not assume the approval and the execution share a `step_seq`."""
-    from belay.approvals.queue import ApprovalQueue
+    from rekha.approvals.queue import ApprovalQueue
 
     contract = ContractModel(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="mail.send",
         reversibility="irreversible",
         effects=[Effect(type="send", resource="email.message", count="1")],

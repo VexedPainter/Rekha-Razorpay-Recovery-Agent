@@ -8,13 +8,13 @@ and *request* recovery actions.
 
 **Cannot:** execute anything itself. Every action goes out through a
 `GovernedCaller`, which in the real system is an MCP client session against
-`belay run` -- the same governed surface any other agent faces. This package
+`rekha run` -- the same governed surface any other agent faces. This package
 holds no Razorpay credentials, opens no database, and (enforced by
 `tests/test_layer_boundaries.py`) cannot import the modules that authorize,
 execute, or record.
 
 `GovernedCaller` is a callable rather than a concrete MCP client for two reasons:
-it keeps `recovery/` free of any dependency on `belay.proxy`, and it lets a test
+it keeps `recovery/` free of any dependency on `rekha.proxy`, and it lets a test
 drive the loop against a real `Lifecycle` without spawning subprocesses. The
 production path and the test path go through the same function signature.
 
@@ -31,20 +31,20 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-from belay.errors import BelayError
-from belay.finance.money import Money
-from belay.finance.money import total as sum_money
+from rekha.errors import RekhaError
+from rekha.finance.money import Money
+from rekha.finance.money import total as sum_money
 
 from recovery.diagnose import DEFAULT_BATCH_SIZE, DiagnosisReport, diagnose_batch
 from recovery.prioritize import prioritize
 from recovery.proposal import PaymentSnapshot, RecoveryPlan, RecoveryProposal
 from recovery.providers import LLMProvider
 
-#: One governed tool call. Raises `BelayError` when the control plane refuses.
+#: One governed tool call. Raises `RekhaError` when the control plane refuses.
 #:
 #: Returns whatever the upstream returned on success, or a
 #: `{"status": "pending_approval", ...}` mapping when the action was parked for a
-#: human -- deliberately the same shape `belay/proxy/lifecycle.py` produces, so
+#: human -- deliberately the same shape `rekha/proxy/lifecycle.py` produces, so
 #: nothing has to be translated between the agent and the proxy.
 #:
 #: A plain callable alias rather than a `Protocol`, because a `Protocol.__call__`
@@ -143,7 +143,7 @@ class RecoveryRun:
 def _unwrap(raw: object) -> dict[str, Any]:
     """Pull a plain dict out of an MCP `CallToolResult`, or pass a dict through.
 
-    Mirrors `belay/executor/saga.py::_as_dict`. The agent sees whatever the
+    Mirrors `rekha/executor/saga.py::_as_dict`. The agent sees whatever the
     `GovernedCaller` hands back, which is a `CallToolResult` over real MCP and a
     plain dict in a direct-`Lifecycle` test.
     """
@@ -194,7 +194,7 @@ async def attempt_recovery(
     }
     try:
         raw = await call(proposal.tool, args)
-    except BelayError as exc:
+    except RekhaError as exc:
         return AttemptResult(
             proposal=proposal,
             outcome=Outcome.REFUSED,
@@ -310,11 +310,11 @@ async def run_recovery(
 
 
 def lifecycle_caller(lifecycle: Any, *, read_only: frozenset[str] = frozenset()) -> GovernedCaller:
-    """Adapt a `belay.proxy.lifecycle.Lifecycle` into a `GovernedCaller`.
+    """Adapt a `rekha.proxy.lifecycle.Lifecycle` into a `GovernedCaller`.
 
-    Lives here rather than in `belay/` so the agent's one seam to the control
+    Lives here rather than in `rekha/` so the agent's one seam to the control
     plane is visible in the AI package -- but takes `lifecycle` as `Any`
-    deliberately: typing it would require importing `belay.proxy`, and keeping
+    deliberately: typing it would require importing `rekha.proxy`, and keeping
     even that import out means the boundary test has nothing to argue with.
 
     Used by tests and by the demo. The production path is an MCP client session,

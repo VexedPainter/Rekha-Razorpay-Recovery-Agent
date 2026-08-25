@@ -1,6 +1,6 @@
 # Razorpay action contracts for AI revenue recovery.
 #
-# This file IS the agent's action space. `belay/proxy/lifecycle.py::resolve()`
+# This file IS the agent's action space. `rekha/proxy/lifecycle.py::resolve()`
 # refuses any tool with no contract here (`contract_missing`, spec §4.6
 # default-deny), so an action that is not declared below cannot be proposed,
 # planned, or executed -- not because the agent is well-behaved, but because
@@ -36,7 +36,7 @@
 # settled Razorpay payment. Marking them verified would be a claim we have not
 # earned.
 
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fetch_all_payments
 summary: List payments, newest first, optionally filtered by status.
 reversibility: irreversible
@@ -51,7 +51,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fetch_payment
 summary: Fetch one payment with its full failure detail.
 reversibility: irreversible
@@ -63,7 +63,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fetch_order_payments
 summary: Every payment attempt against one order -- the customer's retry history.
 reversibility: irreversible
@@ -78,7 +78,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fetch_tokens
 summary: Saved payment instruments for a customer.
 reversibility: irreversible
@@ -93,7 +93,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fetch_payment_link
 summary: Fetch a payment link, including whether it has been paid.
 reversibility: irreversible
@@ -105,7 +105,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fetch_all_payment_links
 summary: List payment links.
 reversibility: irreversible
@@ -120,7 +120,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fetch_all_settlements
 summary: Settlements -- money actually moved to the merchant's bank account.
 reversibility: irreversible
@@ -135,7 +135,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: fetch_settlement_recon_details
 summary: Itemised settlement reconciliation -- leg 3 of settlement verification.
 reversibility: irreversible
@@ -156,7 +156,7 @@ provenance:
 # compensation is materialized against observed state rather than an assumption.
 # The capture tool is `fetch_all_payment_links`, which is read-only -- required,
 # and enforced by `SagaExecutor._check_capture_is_read_only`.
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: create_payment_link
 summary: Create a standard payment link to recover a failed payment.
 reversibility: conditional
@@ -188,7 +188,7 @@ provenance:
   declared_by: integrator
   verified: false
 ---
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: create_payment_link_upi
 summary: Create a UPI-only payment link to recover a failed payment.
 reversibility: conditional
@@ -218,7 +218,7 @@ provenance:
 ---
 # Irreversible: an SMS or email cannot be unsent. `recipients: "1"` exists so a
 # policy `max_recipients` cap can bound a broadcast.
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: send_payment_link
 summary: Send an existing payment link to the customer over SMS or email.
 reversibility: irreversible
@@ -235,7 +235,7 @@ provenance:
 # Declared so it can serve as the `undo` above. Compensations pass through the
 # policy engine too (spec §12), so a cancellation is a governed action in its
 # own right and needs a contract like any other.
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: cancel_payment_link
 summary: Cancel an unpaid payment link. The compensation for link creation.
 reversibility: irreversible
@@ -256,7 +256,7 @@ provenance:
 # is the merchant's mandate, checked before this contract is even resolved. If
 # the tool were simply absent, the scenario would prove nothing about
 # authorization -- only about a missing integration.
-belay_contract: "0.1"
+rekha_contract: "0.1"
 tool: create_refund
 summary: Refund a captured payment. Irreversible -- a refund cannot be un-refunded.
 reversibility: irreversible

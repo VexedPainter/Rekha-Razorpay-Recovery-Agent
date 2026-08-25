@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import json
 
-from belay.finance.money import Money
-from belay.ledger.store import LedgerStore
-from belay.ledger.verify import verify_chain
-from belay.razorpay.forecast import record_proposal
-from belay.razorpay.sequence import (
+from rekha.finance.money import Money
+from rekha.ledger.store import LedgerStore
+from rekha.ledger.verify import verify_chain
+from rekha.razorpay.forecast import record_proposal
+from rekha.razorpay.sequence import (
     SEQUENCE_STOPPED,
     ContactPolicy,
     Halt,
@@ -29,7 +29,7 @@ from belay.razorpay.sequence import (
     next_step,
     record_stop,
 )
-from belay.razorpay.webhooks import ingest, sign_payload
+from rekha.razorpay.webhooks import ingest, sign_payload
 
 INR = "INR"
 SECRET = "seq_secret"

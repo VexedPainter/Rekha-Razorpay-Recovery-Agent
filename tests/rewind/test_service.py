@@ -8,13 +8,13 @@ from typing import Any
 
 import anyio
 import pytest
-from belay.contracts.model import Contract, ContractSet, Effect, Undo
-from belay.errors import BelayError
-from belay.executor.saga import SagaExecutor
-from belay.ledger.store import LedgerStore
-from belay.policy.model import Cap, CapMatch, PolicyDoc
-from belay.proxy.lifecycle import Lifecycle
-from belay.rewind.service import RewindService, is_fenced
+from rekha.contracts.model import Contract, ContractSet, Effect, Undo
+from rekha.errors import RekhaError
+from rekha.executor.saga import SagaExecutor
+from rekha.ledger.store import LedgerStore
+from rekha.policy.model import Cap, CapMatch, PolicyDoc
+from rekha.proxy.lifecycle import Lifecycle
+from rekha.rewind.service import RewindService, is_fenced
 
 pytestmark = pytest.mark.anyio
 
@@ -57,7 +57,7 @@ def _create_contract(*, verification: bool = False) -> Contract:
         else None
     )
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="obj.create",
         reversibility="reversible",
         undo=Undo(tool="obj.delete", args={"id": "$args.id"}),
@@ -68,7 +68,7 @@ def _create_contract(*, verification: bool = False) -> Contract:
 
 def _send_contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="mail.send",
         reversibility="irreversible",
         effects=[Effect(type="send", resource="email.message", count="1")],
@@ -81,7 +81,7 @@ def _delete_contract() -> Contract:
     # through the lifecycle, so it doesn't need (and per spec Â§4.2 must not
     # declare) an `undo` of its own.
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="obj.delete",
         reversibility="irreversible",
         effects=[Effect(type="delete", resource="obj.record", count="1")],
@@ -90,7 +90,7 @@ def _delete_contract() -> Contract:
 
 def _get_contract() -> Contract:
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="obj.get",
         reversibility="irreversible",
         effects=[Effect(type="read", resource="obj.record", count="1")],
@@ -191,7 +191,7 @@ async def test_new_step_after_fence_raises_session_fenced() -> None:
     service.fence(session_id)
     assert is_fenced(ledger, session_id) is True
 
-    with pytest.raises(BelayError) as excinfo:
+    with pytest.raises(RekhaError) as excinfo:
         await lifecycle.govern_and_execute(
             "obj.create", {"id": "b"}, read_only_hint=False, executor=store.executor
         )
@@ -224,7 +224,7 @@ async def test_fencing_race_fence_wins_over_a_step_racing_to_start() -> None:
                 "obj.create", {"id": "late"}, read_only_hint=False, executor=store.executor
             )
             results.append("proceeded")
-        except BelayError as exc:
+        except RekhaError as exc:
             results.append(exc.code)
 
     async with anyio.create_task_group() as tg:
@@ -349,10 +349,10 @@ async def test_verification_passing_counts_as_compensated() -> None:
 
 
 def _create_contract_with_capture() -> Contract:
-    from belay.contracts.model import Capture
+    from rekha.contracts.model import Capture
 
     return Contract(
-        belay_contract="0.1",
+        rekha_contract="0.1",
         tool="obj.create",
         reversibility="reversible",
         undo=Undo(tool="obj.delete", args={"id": "$args.id"}),

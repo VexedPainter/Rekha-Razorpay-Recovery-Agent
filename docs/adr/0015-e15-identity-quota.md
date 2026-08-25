@@ -17,8 +17,8 @@ una sesión, no hay cuota por identidad que tenga sentido.
 
 ## Decisiones
 
-- **`belay/policy/quota.py`: `QuotaTracker`, mismo patrón que
-  `belay.policy.baseline.BaselineStore` (E10) -- lee el ledger, no guarda un
+- **`rekha/policy/quota.py`: `QuotaTracker`, mismo patrón que
+  `rekha.policy.baseline.BaselineStore` (E10) -- lee el ledger, no guarda un
   segundo store paralelo de verdad.** La diferencia real frente a E10:
   `BaselineStore` lee **una sesión** (`ledger.read(session_id)`);
   `QuotaTracker` lee **todas las sesiones** (`ledger.read_all()`) agrupadas
@@ -79,11 +79,11 @@ una sesión, no hay cuota por identidad que tenga sentido.
   `window="1d"`) **no** se deriva de nada -- es un juicio de política que un
   operador real fijará según su propio apetito de riesgo. Publicar
   `enabled=True` con un número inventado sería fingir que "20 por día" es
-  neutral cuando no lo es. Por eso `belay-conformance run --target belay
+  neutral cuando no lo es. Por eso `rekha-conformance run --target rekha
   --level 3` sigue en PASSED con cero cambio de comportamiento por defecto:
   un operador tiene que optar explícitamente por `enabled=True` y elegir su
   propio número, exactamente como ya elige sus propios `Cap`s (E4).
-- **`window` es un string parseado por `belay.policy.quota.parse_window`**
+- **`window` es un string parseado por `rekha.policy.quota.parse_window`**
   (`"1d"`, `"7d"`, `"12h"`, `"30m"`, `"45s"`) -- una regex simple, no una
   dependencia nueva (`dateutil`/`pytimeparse` habrían sido overkill para
   cinco sufijos).
@@ -137,7 +137,7 @@ una sesión, no hay cuota por identidad que tenga sentido.
   leer el ledger en vez de mantener estado paralelo).
 - `docs/adr/0014-e14-identity-attribution.md` (de dónde viene
   `initiated_by`, del que depende esta entrega).
-- Código: `belay/policy/quota.py`, `belay/policy/engine.py`
-  (`_evaluate_quota`), `belay/policy/model.py` (`QuotaDefaults`).
+- Código: `rekha/policy/quota.py`, `rekha/policy/engine.py`
+  (`_evaluate_quota`), `rekha/policy/model.py` (`QuotaDefaults`).
 - Tests: `tests/policy/test_quota.py`.
 - Demo: `examples/demo_quota.py`.

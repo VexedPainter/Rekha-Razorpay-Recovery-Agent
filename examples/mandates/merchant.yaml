@@ -59,7 +59,7 @@ max_per_action:
 #
 # This is the ceiling per-action limits cannot provide: 40 links of Rs 4,000
 # each pass a Rs 5,000 per-action check while breaching this by more than 3x.
-# Enforced by belay/policy/cumulative.py.
+# Enforced by rekha/policy/cumulative.py.
 max_cumulative:
   major: "50000.00"
   currency: INR

@@ -6,12 +6,12 @@ to consult a language model.
 It proposes, and nothing more. It holds no Razorpay credentials, opens no
 database, and appends to no ledger. Its sole output is a `RecoveryProposal`,
 and its sole route to the outside world is an MCP client session against the
-Belay proxy -- the same governed surface any other agent would face.
+Rekha proxy -- the same governed surface any other agent would face.
 
 This boundary is enforced mechanically, not by convention:
 `tests/test_layer_boundaries.py` fails the build if any module here imports
-`belay.ledger`, `belay.approvals`, `belay.policy`, `belay.executor`, or
-`belay.settlement`.
+`rekha.ledger`, `rekha.approvals`, `rekha.policy`, `rekha.executor`, or
+`rekha.settlement`.
 
 The reason is the central claim of the project. A model is promptable,
 non-deterministic, and cannot be audited after the fact. So the model is
