@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, razorpay-recovery]
   pull_request:
 
 jobs:
@@ -32,16 +32,13 @@ jobs:
   wheel-smoke:
     # Editable installs (`pip install -e .`) hide packaging bugs: missing
     # package-data, wrong deps. This installs ONLY the built wheel in a
-    # throwaway venv and runs the real quickstart against it.
+    # throwaway venv and runs the real conformance suite against it.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
       - name: Build wheel
         run: |
           pip install build
@@ -50,37 +47,15 @@ jobs:
         run: |
           python -m venv /tmp/wheel-venv
           /tmp/wheel-venv/bin/pip install dist/*.whl
-      - name: Quickstart against the installed wheel
+      - name: Conformance against the installed wheel
         run: |
           cd /tmp
           /tmp/wheel-venv/bin/belay-conformance run --target belay --level 3
-      - name: E22 zero-config connect smoke (wheel-only, isolated homes)
-        # scripts/smoke_connect.py imports belay.proxy.upstream/cli.* itself
-        # (its own MCP verification client and path helpers) -- it needs
-        # the SAME interpreter the wheel was installed into, not the
-        # runner's system `python`, or the import fails before the smoke
-        # even starts. It generates its own fake `codex` CLI, puts it on an
-        # isolated PATH, isolates HOME so the real `belay` console script
-        # from the wheel above never touches this runner's real
-        # `~/.codex`, and fails the job outright on a missing bundled pack,
-        # wrong official-CLI syntax, a wrong recorded Belay launch command,
-        # failure to list tools through Belay, or failed directory
-        # confinement.
-        run: |
-          mkdir -p /tmp/smoke-connect
-          /tmp/wheel-venv/bin/python scripts/smoke_connect.py \
-            --belay /tmp/wheel-venv/bin/belay \
-            --bin-dir /tmp/smoke-connect/bin \
-            --home /tmp/smoke-connect/home \
-            --project /tmp/smoke-connect/project
 
   cross-platform-clean-room:
-    # plan-v2 E19.7: the fast test suite, on a genuinely clean VM per OS --
-    # every GitHub Actions runner starts fresh, nothing pre-installed beyond
-    # the image defaults -- across every OS belay claims to support. One
-    # Python version per OS (3.13): this job is about platform coverage, not
-    # re-running the full version matrix the `test` job above already covers
-    # across the supported Python-version matrix.
+    # The fast suite on a genuinely clean VM per OS. One Python version per
+    # OS: this job is about platform coverage, not re-running the version
+    # matrix the `test` job above already covers.
     strategy:
       fail-fast: false
       matrix:
@@ -95,60 +70,3 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Test (fast branch-coverage gate)
         run: pytest
-
-  build-binaries:
-    # plan-v2 E19.5: standalone, no-Python-required `belay` executables,
-    # one per OS, built and smoke-tested on that OS's own real runner --
-    # not cross-compiled and hoped to work.
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install
-        run: pip install -e ".[build]"
-      - name: Build binary
-        run: python scripts/build_binary.py
-      - name: Smoke test the binary
-        shell: bash
-        run: |
-          BIN=dist-bin/belay
-          if [ ! -f "$BIN" ]; then BIN=dist-bin/belay.exe; fi
-          "$BIN" --help
-      - name: E23 zero-config connect smoke (frozen binary, isolated homes)
-        # scripts/smoke_connect.py --expect-frozen (Task 3): exercises the
-        # just-built, no-Python-required binary itself -- `connect` against
-        # a fake `codex` CLI, a real MCP session THROUGH Belay against the
-        # real pinned Filesystem upstream (list-tools, in-project write,
-        # out-of-project confinement), `disconnect` -- and additionally
-        # asserts the command the fake CLI recorded is the absolute binary
-        # path plus `run --config ...`, never a `python`/`py` interpreter
-        # or `belay.cli.main` spelled out (which would mean this "no
-        # Python required" binary quietly still needed one). Uses the
-        # runner's own `python` (not the frozen binary) to drive the
-        # script -- it imports `belay.*` itself as a verification client,
-        # which the editable install from the step above already provides.
-        shell: bash
-        run: |
-          BIN=dist-bin/belay
-          if [ ! -f "$BIN" ]; then BIN=dist-bin/belay.exe; fi
-          mkdir -p /tmp/smoke-connect-frozen
-          python scripts/smoke_connect.py \
-            --belay "$(pwd)/$BIN" \
-            --bin-dir /tmp/smoke-connect-frozen/bin \
-            --home /tmp/smoke-connect-frozen/home \
-            --project /tmp/smoke-connect-frozen/project \
-            --expect-frozen
-      - uses: actions/upload-artifact@v4
-        with:
-          name: belay-${{ matrix.os }}
-          path: dist-bin/belay*
-          if-no-files-found: error

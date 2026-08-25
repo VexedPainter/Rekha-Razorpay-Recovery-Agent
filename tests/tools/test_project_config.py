@@ -48,8 +48,20 @@ def _test_job_pytest_commands() -> list[list[str]]:
     return commands
 
 
+def _declared_markers(project_config: dict) -> list[str]:
+    """Marker names declared in `[tool.pytest.ini_options].markers`."""
+    declarations = project_config["tool"]["pytest"]["ini_options"]["markers"]
+    return [declaration.split(":", 1)[0].strip() for declaration in declarations]
+
+
 def test_fast_gate_has_the_effective_safe_branch_coverage_configuration() -> None:
-    """The default pytest gate measures the intended suite at its 81% floor."""
+    """The default pytest gate measures the intended suite at its floor.
+
+    The set of markers the default gate must exclude is derived from the
+    declared markers rather than hard-coded, so adding a new `live_*` marker
+    without also excluding it from the default gate fails this test instead
+    of silently letting real API calls (and real costs) into CI.
+    """
     with (PROJECT_ROOT / "pyproject.toml").open("rb") as config_file:
         project_config = tomllib.load(config_file)
 
@@ -59,8 +71,21 @@ def test_fast_gate_has_the_effective_safe_branch_coverage_configuration() -> Non
     assert _contains_option(addopts, "--cov-branch")
     assert _contains_option(addopts, "--cov") or _contains_option(addopts, "--cov=belay")
     assert not _contains_option(addopts, "--no-cov")
-    assert _effective_marker_expression(addopts) == "not slow and not live_conformance"
-    assert fail_under >= 81
+
+    effective = _effective_marker_expression(addopts)
+    must_exclude = [
+        marker
+        for marker in _declared_markers(project_config)
+        if marker == "slow" or marker.startswith("live_")
+    ]
+    assert must_exclude, "expected at least the `slow` marker to be declared"
+    for marker in must_exclude:
+        assert f"not {marker}" in effective, (
+            f"marker {marker!r} is declared but not excluded from the default "
+            f"gate ({effective!r}) -- a `live_*` marker left in the default "
+            f"suite spends real credits in CI"
+        )
+    assert fail_under >= 83
 
 
 def test_ci_test_job_uses_safe_default_and_slow_pytest_gates() -> None:
