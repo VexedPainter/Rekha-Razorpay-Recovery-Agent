@@ -43,8 +43,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Jairogelpi/rekha"
-Specification = "https://github.com/Jairogelpi/rekha/blob/main/docs/spec.md"
+Homepage = "https://github.com/rahuljaiprakash/rekha"
+Specification = "https://github.com/rahuljaiprakash/rekha/blob/main/docs/spec.md"
 
 [project.scripts]
 rekha = "rekha.cli.main:main"

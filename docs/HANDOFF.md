@@ -1,258 +1,178 @@
-# HANDOFF — resume state
+# Handoff
 
-Paste `RESUME_PROMPT` (bottom of this file) into a fresh session to continue.
-`AGENTS.md` carries the standing engineering rules and is auto-loaded by agent
-sessions; this file carries the *current position*.
+**Rekha** — AI revenue recovery for Razorpay on a deterministic financial control
+plane. Submission for the Razorpay AI Buildathon 2026, Track 03.
 
-Last updated: 2026-08-26, after Phase 8 + the adversarial suite, metrics, README
-and ADR 0029.
+Author: Rahul J <rahuljaiprakashden@gmail.com>
+Branch: `razorpay-recovery` · 122 commits · tags `v0.1.0`, `v0.2.0a1`,
+`v0.2.0a1-agent-gate`
 
 ---
 
-## The project is functionally complete
+## Verified state
 
-An **AI revenue recovery agent for Razorpay with a deterministic financial control
-plane**, for the Razorpay AI Buildathon, **Track 03 — AI Revenue Recovery**.
+Every number below was produced by running the command, not by recollection.
 
-All four requirements of the official track bar are met and demonstrable:
-
-| Requirement (verbatim from razorpay.com/buildathon) | Status |
-| --- | --- |
-| measured money recovered across a batch | **DONE** — INR 6,560 recovered of INR 10,791 requested, from webhooks |
-| compliant escalation | **DONE** — 10 of 15 recoveries paused for a human |
-| stopping rules | **DONE** — cumulative + velocity ceilings |
-| audit trail | **DONE** — 78 hash-chained events, offline-verifiable signed evidence |
-
-## What is left
-
-**Nothing blocking.** Remaining work is yours, not code:
-
-1. **Record the 5-minute pitch video.** Every beat is a runnable command (below).
-2. **Push to a public GitHub repo** on the new account. 111+ commits and 3 tags
-   travel with the push; nothing is lost. See "Pushing" below.
-3. **Apply** at `forms.gle/d9r2gvxp8cmoZhon9` before **2026-09-05**.
-
-Optional polish, in value order, none required:
-- one live Razorpay run (`rekha recover --live`, already wired, needs no Docker)
-- a static HTML dashboard (`rekha dashboard` exists but is not retargeted)
-- a spec section for the financial control plane in `docs/spec.md`
-
-## Where it lives / how to run
-
-```
-C:\Users\Pc\Desktop\Razorpay_Hackathon
-```
-
-Local only, never pushed. `.git` intact (history is a pitch asset). Repo-local git
-identity `Rahul J <rahuljaiprakashden@gmail.com>`; global config untouched.
-
-Always use the venv Python (project needs 3.12; system Python is 3.11):
-
-```powershell
-cd C:\Users\Pc\Desktop\Razorpay_Hackathon
-.\.venv\Scripts\python.exe -m pytest -q --no-cov              # 656 tests, ~50s
-.\.venv\Scripts\python.exe -m pytest -m slow --no-cov         # 26 subprocess tests
-```
-
-Put `.\.venv\Scripts` on PATH before the slow suite — some tests shell out to
-`rekha-conformance`.
-
-## The demo, as commands
-
-Each of these is one beat of the pitch video. All offline, no credentials.
-
-```powershell
-# 1. The whole closed loop, ~1 minute
-.\.venv\Scripts\python.exe examples\demo_recovery.py
-
-# 2. Seven adversarial scenarios, each naming the layer that refused it
-.\.venv\Scripts\rekha.exe bench run
-
-# 3. The fan-out attack in isolation
-.\.venv\Scripts\python.exe examples\demo_fanout.py
-
-# 4. Settlement mismatch detection (three variants)
-.\.venv\Scripts\python.exe -m rekha.cli.main recover --provider replay
-.\.venv\Scripts\python.exe scripts\simulate_payments.py --rate 0.6 --inject unauthorized
-.\.venv\Scripts\python.exe -m rekha.cli.main webhooks replay webhooks.json
-.\.venv\Scripts\rekha.exe settle-verify --recon recon.json      # exits 1
-
-# 5. Measured metrics, folded from the ledger
-.\.venv\Scripts\rekha.exe bench metrics --db recovery.db
-
-# 6. Offline-verifiable signed evidence
-.\.venv\Scripts\rekha.exe keygen demo.key
-.\.venv\Scripts\rekha.exe verify-export <session-id> --db recovery.db --key demo.key -o evidence.json
-.\.venv\Scripts\rekha.exe verify-evidence evidence.json
-
-# 7. The inherited control plane still governs and rewinds
-.\.venv\Scripts\python.exe examples\demo.py --oops
-```
-
-## Verified state at last commit (8cc3108)
-
-| | |
-| --- | --- |
-| Tests | **656 pass / 0 fail**, + 26 slow |
-| Branch coverage | 84.18% (CI floor 83%, upward-only) — measures `rekha/` AND `recovery/` |
-| L3 conformance | PASSED |
-| Spec MUSTs | 31, all covered, CI-enforced |
-| ruff / mypy | clean |
-| Adversarial suite | 6/6 blocked, 0/10 false positives |
-
-One offline run: 200 failed payments, INR 6,55,134 at risk, 15 selected, 5 executed,
-10 escalated, **INR 6,560 recovered**, 78 events, chain + coherence OK.
-
-## Architecture
-
-| Package | Responsibility | Determinism |
-| --- | --- | --- |
-| `rekha/` | contracts, planning, policy, approvals, idempotent execution, ledger, compensation | deterministic |
-| `rekha/finance/` | `Money` (integer paise), `MerchantMandate` | deterministic |
-| `rekha/policy/cumulative.py` | cumulative spend + velocity, folded from the ledger | deterministic, pure |
-| `rekha/razorpay/webhooks.py` | HMAC verify, dedupe, ingest, correlate | deterministic |
-| `rekha/settlement/` | three-way verification (+ `live.py` read-only source) | deterministic, pure |
-| `recovery/` | AI diagnosis, strategy, prioritisation, providers | **non-deterministic** |
-| `bench/` | adversarial scenarios + metrics | deterministic |
-| `conformance/` | target-agnostic L1/L2/L3 suite | deterministic |
-
-**The load-bearing invariant.** `recovery/` is the only package allowed to call an
-LLM, and may not import `rekha.ledger`, `rekha.approvals`, `rekha.policy`,
-`rekha.executor`, `rekha.settlement`, or `rekha.finance.mandate`. Enforced by AST in
-`tests/test_layer_boundaries.py`, which includes a negative case pinning the
-detector. `rekha.finance.money` IS allowed: a mandate is authority, `Money` is
-arithmetic, and forbidding a value type would push raw ints across the boundary.
-
-Full reasoning for every decision: `docs/adr/0028-*.md` and `docs/adr/0029-*.md`.
-
-## Phases done
-
-1. **Strip** (`6b1808d`) — deleted the Native Agent Gate and adoption/DX surface.
-   31,896 → 15,551 LOC. The 4 pre-existing Windows failures vanished with their
-   modules. Coverage *rose*.
-2. **Financial domain** (`223231a`) — `Money` (integer paise, no `__float__`),
-   `MerchantMandate` replacing `IntentContract`, checked before everything else.
-3. **Sandbox + contract pack** (`98f1f0c`) — real FastMCP Razorpay stand-in, 200
-   seeded failed payments, 13 contracts, `Effect.amount_from`.
-4. **Cumulative + velocity limits** (`6241b45`) — closed `Cap.per: session`, which
-   was declared and never read for the project's entire life.
-5. **AI recovery layer** (`db5b58b`, `d3436ae`) — proposal model, batched diagnosis,
-   deterministic prioritisation, pluggable free providers, real Gemini fixtures.
-6. **Webhooks** (`2a0e347`) — HMAC verify, durable dedupe, correlation as a pure
-   fold. This is what makes money recovered *measured*.
-7. **Settlement verification** (`0dfc38d`) — three-way reconciliation, four honest
-   verdicts, four mismatch classes.
-8. **Adversarial suite + README + ADR** (`8cc3108`).
-
-## Real bugs found and fixed — do not reintroduce
-
-1. **`LedgerStore` ignored its injected clock** — stamped `datetime.now(UTC)` while
-   window limits compared that against `Clock.now()`. Two time sources for one
-   comparison. `test_quota.py` had a workaround that rewrote `at` and broke the hash
-   chain.
-2. **Reads would have paused 200 times** — read effects declared no `count`, so they
-   landed in `unknown[]` and spec §6.3 worst-casing beat the `fetch_*: allow` rule.
-3. **`approval_threshold` was dead config** — declared in Phase 2, never enforced.
-4. **A demo reported paused actions as successes** — `govern_and_execute` returns a
-   `pending_approval` dict rather than raising. Conflating executed / paused /
-   refused is how a caller believes money moved when it did not.
-5. **Wall-clock anchoring staled fixtures within the hour** — payment `age_hours`
-   came from `time.time()`, so every request was unique. Now anchored to the newest
-   payment in the batch.
-6. **Gemini 3.x is a thinking model** — the response carries reasoning as its own
-   part, so reading `parts[0]` picked up a thought and failed to parse.
-7. **Groq's default model was retired** — `llama-3.3-70b-versatile` 404s. Query the
-   live catalogue rather than trusting memory.
-8. **Batch-25 dropped connections** — measured limit is ~15; default is 10.
-9. **Two README commands were wrong as first written** — `verify-export` needs a
-   session id and a signing key; `keygen` takes a positional path. Found by running
-   them.
-10. **PowerShell backtick escaping corrupted two files** — a lone `\r` into
-    `pyproject.toml`, a literal `` `n `` into a test. Use the file-edit tool for
-    multi-line changes; never PowerShell regex with backticks.
+| Gate | Result |
+|---|---|
+| Fast tests | **717 pass / 0 fail** |
+| Slow tests | 26 pass |
+| Branch coverage | **84.02%** (floor 83%, measures `rekha/` and `recovery/`) |
+| L3 conformance | PASSED (`--target rekha`) |
+| Spec MUSTs | 31, all covered by at least one test |
+| ruff | clean |
+| mypy | clean, strict, 81 source files |
+| Adversarial | 7/7 blocked, 0/10 false positives |
+| Held-out diagnosis | 100.0% macro F1 (keyword baseline 93.0%, majority 6.9%) |
+| Backtest | +79.3% recovery from sequencing, 196 observed outcomes |
+| Demo | ₹6,55,134 at risk → ₹7,452 recovered, chain OK |
 
 ## Environment
 
-- **Razorpay test keys work.** `.env` is populated and gitignored. All six endpoints
-  return HTTP 200 via `scripts/check_razorpay.py`, but **0 records** — the account
-  has never taken a payment. So settlement leg 3 is fixture-backed, behind
-  `SettlementSource`, and the README says so plainly.
-- **Gemini and Groq keys both work**, verified with real calls. Fixtures in
-  `recovery/fixtures/` are real Gemini output (`gemini-3.6-flash` for 13 batches,
-  `gemini-3.5-flash-lite` for 7 after the free quota ran out). Gemini's free tier is
-  **20 requests/day** — spent for the day after recording.
-- **No Docker needed.** `npx mcp-remote` is available (Node 24), so `--live` uses
-  Razorpay's remote MCP server.
-- **A security near-miss, no leak:** keys were first pasted into `.env.example`, the
-  tracked template. Caught before any commit, git history verified clean, template
-  restored. `tests/tools/test_project_config.py` now fails the build if the template
-  gains a real-looking value or loses a provider slot.
+- Python **3.12** via `uv`, venv at `.\.venv\`. System Python 3.11 will not work.
+- `uv pip install -e . --python .\.venv\Scripts\python.exe`
+- Entry points: `rekha`, `rekha-conformance`
+- Repo-local git identity is set; global config untouched.
+- **`rekha recover` defaults to a live provider.** Pass `--provider replay` to use
+  the recorded fixtures offline. `examples/demo_recovery.py` already does.
 
-## Pushing (when ready)
-
-111+ commits and tags `v0.1.0`, `v0.2.0a1`, `v0.2.0a1-agent-gate` all travel with a
-push. A new repo on a new account loses nothing.
+## Reproducing every claim
 
 ```powershell
-git remote rename origin old-origin
-git remote add origin https://github.com/NEW_ACCOUNT/REPO.git
-git push -u origin razorpay-recovery
-git push origin --tags
+$env:PYTHONIOENCODING="utf-8"
+$env:PATH="C:\Users\Pc\Desktop\Razorpay_Hackathon\.venv\Scripts;$env:PATH"
+
+python -m pytest -q                                   # 717 pass, coverage gate
+python -m pytest -m "slow and not live_conformance" -q # 26 pass
+ruff check . ; mypy rekha recovery bench
+rekha-conformance run --target rekha --level 3
+python scripts\traceability.py --check
+
+python examples\demo_recovery.py
+rekha bench run
+rekha bench evaluate
+rekha bench backtest --sweep
+rekha bench calibration --db demo-recovery.db
+
+rekha recover --provider replay
+python scripts\simulate_payments.py --inject unauthorized
+rekha settle-verify --db recovery.db --recon recon.json   # exits 1, by design
 ```
-
-Create the repo **empty** (no README/license) or the push will conflict. Add
-`rahuljaiprakashden@gmail.com` as a verified email on the new account so the 111 commits
-attribute to it — cosmetic, but "111 commits over 5 weeks" is a real signal. Do NOT
-rewrite history to change author emails.
-
-GitHub needs a personal access token (`repo` scope) or `gh auth login`.
-
-## Working agreement
-
-One phase per session. After each: run the full gate (fast tests, slow tests, both
-demos, conformance, traceability, ruff, mypy), report real numbers, commit locally
-with a detailed message. Never start on a red build. Do not push. Do not rename the
-`rekha` package. Do not attempt the `mcp<2.0` → 2.0 migration.
 
 ---
 
-## RESUME_PROMPT
+## What the AI contributes, honestly
 
-```text
-I'm continuing work on a Razorpay AI Buildathon submission. The repo is at
-C:\Users\Pc\Desktop\Razorpay_Hackathon (local only, never pushed).
+Stated this way because the measurements are the strongest part of the submission,
+and the unflattering ones are what make the flattering ones believable.
 
-FIRST: read docs/HANDOFF.md, README.md and AGENTS.md in that repo. They contain the
-full state, the architecture, ten real bugs already found and fixed, and what
-remains. Then confirm the state matches:
+**Diagnosis is genuinely good.** 100% macro F1 on a held-out set against ground truth
+the model never sees, versus 93% for a twelve-line keyword table that was included
+expecting it might win. Read the margin rather than the absolute number: the cohort is
+synthetic and its error text is cleaner than reality, and both classifiers read the
+same text.
 
-  cd C:\Users\Pc\Desktop\Razorpay_Hackathon
-  .\.venv\Scripts\python.exe -m pytest -q --no-cov
-  .\.venv\Scripts\rekha.exe bench run
+**Sequencing works, but it is persistence rather than intelligence.** +79.3% money
+recovered, achieved by making 81% more contacts at slightly *worse* efficiency per
+contact (₹832 → ₹823). The engineering value is that repeated contact is made safe,
+not that the schedule is clever.
 
-Expect 656 passed / 0 failed, and the adversarial suite reporting 6/6 blocked with
-0/10 false positives. Use .\.venv\Scripts\python.exe for everything -- the project
-needs Python 3.12 and the system Python is 3.11.
+**The uplift rests on an unmeasured assumption.** Contact fatigue drives it more than
+anything else: +38.4% at 0.30, +114.9% at 1.00. Always quote the range. Printed in
+every report, swept with `--sweep`.
 
-Context: this repo was my own general AI-agent tool-safety MCP proxy (rekha,
-31,896 LOC, L3 conformant, 28 ADRs). We retargeted it into an AI revenue recovery
-agent for Razorpay with a deterministic financial control plane. It is FUNCTIONALLY
-COMPLETE -- all four requirements of the official Track 03 bar are met: measured
-money recovered across a batch (INR 6,560 from webhooks), compliant escalation,
-stopping rules, and an audit trail. The central invariant is that the AI proposes and
-the control plane authorizes: recovery/ is the only package allowed to call an LLM
-and is forbidden by an AST test from importing anything that could authorize,
-execute, or record.
+**The forecasts rank well and are calibrated badly.** ~18 points too pessimistic, so
+Brier skill is −6.7% — they lose to quoting the base rate. But separation is +0.075:
+payments rated higher do recover more often. The number is used *only* to rank against
+a budget, where a constant offset cancels out, so it is fit for its purpose and unfit
+for one nothing uses it for.
 
-Nothing is blocking. What remains is mine to do: record a 5-minute pitch video, push
-to a public repo, and apply before 2026-09-05. Optional polish is listed in
-HANDOFF.md.
+**Sample size reversed a conclusion.** At n=5 that same measurement showed skill
++9.6%. At n=196 it shows −6.7%. The small sample did not merely lack precision, it
+pointed the wrong way. This is why `coverage` is surfaced.
 
-If I ask for changes, work one focused piece at a time. After each, run the full gate
-(fast tests, slow tests, both demos, conformance, traceability, ruff, mypy), report
-the real numbers against the baselines in HANDOFF.md, and commit locally with a
-detailed message. Don't push. Don't rename the rekha package. Don't attempt the mcp
-2.0 migration. Update docs/HANDOFF.md at the end.
+**Timing judgement is narrow.** Only two distinct first-step delays (24h, 48h),
+correctly assigning the longer to `insufficient_funds`, and `wait` used as an opening
+action for 13 payments — all insufficient-funds, never elsewhere.
+`corr(delay, true recoverability) = −0.525`, correctly signed but largely inherited
+from correct classification rather than independent scheduling.
 
-Ask me before starting if anything in HANDOFF.md doesn't match what you find.
-```
+---
+
+## Constraints discovered by measurement
+
+- **Gemini free tier: 20 requests/day, per project not per key.** A second key on the
+  same account shares the quota. 200 payments at batch 10 is exactly 20 requests.
+- **Gemini drops the connection at batch 25**, works at 15. `DEFAULT_BATCH_SIZE = 10`
+  leaves margin.
+- **Groq counts requested `max_tokens` against its 8000 TPM limit.** The longer v2
+  prompt made even 3 payments fail with HTTP 413 at the default 8192 budget. Prompt
+  length and batch size trade off against each other; `--max-tokens` exists for this.
+- **Gemini 3.x is a thinking model** — `parts[0]` may be a thought. Parts marked
+  `thought` must be skipped.
+- **Groq's `llama-3.3-70b-versatile` is retired** (404). Default is
+  `openai/gpt-oss-120b`.
+- **Razorpay test keys work but return zero settlement records** on all six endpoints,
+  so settlement leg 3 is fixture-backed through a `SettlementSource` protocol.
+- **No Docker available.** `--live` uses `npx mcp-remote` (Node 24) against Razorpay's
+  remote MCP server.
+
+## Traps that cost time — do not reintroduce
+
+1. `LedgerStore` ignored its injected clock. It now takes a `Clock`.
+2. Read effects with no `count` produced `unknown[]`, and spec §6.3 worst-casing beat
+   `fetch_*: allow` — which would pause 200 times.
+3. `approval_threshold` was declared and never enforced.
+4. A demo counted `pending_approval` returns as successes.
+5. Wall-clock anchoring staled fixtures hourly.
+6. Advancing past a `wait` step by incrementing the touch count corrupted the
+   contact-limit check. Plan position and contacts used are different quantities.
+7. `Event.at` is an ISO string, not an epoch number. Convert at the boundary with
+   `event_epoch()`; do not store both.
+8. Diagnosing a shuffled subset changes batch composition, misses the fixtures, and
+   silently scores the fallback default at 3% — a plumbing bug that looks like model
+   collapse.
+9. A single-shot baseline that discards `wait` plans does nothing at all on those
+   payments and inflates the uplift. A baseline chosen to lose is not a baseline.
+10. `git reset --hard` does not remove ignored files and `git clean -fd` skips them,
+    so a stale `rekha/**/__pycache__` kept the directory alive and `git mv belay
+    rekha` nested the package inside it.
+11. **PowerShell backtick escaping corrupts files.** Use the file-edit tool for
+    multi-line changes, never PowerShell regex with backticks.
+12. `ruff format` is not part of this project's workflow. Running it reflows 65 files
+    of prose comments. Only `ruff check --fix` should run.
+
+---
+
+## Next steps
+
+**Queued, needs Gemini quota to reset (rolling window; currently 429):**
+- A `diagnose_v3` prompt with richer per-cause timing guidance, A/B'd against v2's
+  measured 24/48h spread. Worth doing only *with* the comparison — otherwise the rule
+  table is doing the work while looking like model judgement.
+- Fixtures from a second provider for the same prompt, to measure provider agreement.
+
+**No quota needed:**
+- Cohort-level bank-outage detection: eleven failures sharing a bank is one incident,
+  which is invisible when payments are judged alone. One prompt change plus a
+  measurement.
+- Knapsack budget optimisation measured in rupees against the current greedy baseline.
+
+**Outstanding for the author:**
+- Create an empty public repo, then `git remote add origin …` and
+  `git push -u origin razorpay-recovery && git push --tags`.
+- Add `rahuljaiprakashden@gmail.com` as a verified email on that account, or all 122
+  commits show as unattributed.
+- Update the two GitHub URLs in `pyproject.toml`.
+- Record the 5-minute video. `START_HERE.txt` §3 is the script, §5 is what makes it
+  credible.
+- Apply at `forms.gle/d9r2gvxp8cmoZhon9` before **2026-09-05**.
+- Rotate the Gemini key in `.env` — it was pasted into a chat transcript. `.env` is
+  gitignored and has never been committed; verified.
+
+## Working agreement
+
+After each phase: run the full gate (fast tests, slow tests, both demos, conformance,
+traceability, ruff, mypy), report real numbers against the previous baseline, and
+commit locally with a detailed message. Never start on a red build. Do not push
+without being asked. Do not attempt the `mcp` 2.0 migration.

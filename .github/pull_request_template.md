@@ -1,8 +1,8 @@
 ## What and why
 
 <!-- One or two sentences: what changed, and the concrete problem it fixes
-or the entrega/feature it implements. Link the entrega (docs/plan.md /
-docs/plan-v2.md) or ADR if there is one. -->
+or the entrega/feature it implements. Link the relevant
+ADR if there is one. -->
 
 ## Scope check
 

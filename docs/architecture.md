@@ -1,147 +1,157 @@
 # Architecture
 
-Rekha sits as an MCP proxy between an agent and its tool servers: it speaks
-MCP to the agent (server role) and MCP to the wrapped tools (client role,
-spec Appendix C). Every tool call the agent makes is governed by the
-lifecycle in `rekha/proxy/lifecycle.py` before (and if necessary instead of)
-reaching the real tool.
+## The one decision everything follows from
 
-## Component map
+An LLM good enough to judge which failed payments deserve chasing is also good
+enough to be confidently wrong, and to be manipulated by text a customer typed into
+an order note. So the system is two packages with an enforced boundary, not one
+package with careful prompting.
 
-```mermaid
-flowchart LR
-    Agent(["Agent\n(MCP client)"]) -- MCP call --> Proxy
-
-    subgraph Proxy["rekha (rekha/proxy)"]
-        direction TB
-        Resolve["resolve()\ncontracts/model.py, loader.py\n+ default rule (spec §4.6)"]
-        Plan["Planner\nplanner/planner.py\ndry-run: contract | native_dry_run"]
-        Policy["PolicyEngine\npolicy/engine.py\nverdict: allow | pause | deny"]
-        Approvals["ApprovalQueue\napprovals/queue.py\nCLI-only surface, no agent access"]
-        Executor["SagaExecutor\nexecutor/saga.py\njournaled -> capturing -> calling ->\nresult_recorded -> compensation_registered -> committed"]
-        Rewind["RewindService\nrewind/service.py\nfencing, reverse compensation,\nhonest report"]
-        Ledger[("LedgerStore\nledger/store.py, verify.py\nhash-chained events, SQLite")]
-
-        Resolve --> Plan --> Policy
-        Policy -- pause --> Approvals
-        Policy -- allow --> Executor
-        Approvals -- approved --> Executor
-        Executor --> Ledger
-        Resolve --> Ledger
-        Plan --> Ledger
-        Policy --> Ledger
-        Approvals --> Ledger
-        Rewind -- reads/appends --> Ledger
-        Rewind -- compensating calls --> Executor
-    end
-
-    Executor -- MCP call --> Tools[["Tool servers\n(proxy/upstream.py)"]]
-    Rewind -- MCP call (undo) --> Tools
-
-    Operator(["Human operator\n(rekha approvals / rekha rewind CLI)"]) -.-> Approvals
-    Operator -.-> Rewind
+```
+                    ┌──────────────────────────────────────┐
+   failed payments  │  recovery/          NON-DETERMINISTIC │
+   ───────────────► │  the only package that calls an LLM   │
+                    │  diagnoses cause, proposes a sequence │
+                    └──────────────────┬───────────────────┘
+                                       │  proposals: untrusted requests
+                    ═══════════════════▼═══════════════════  ← the line
+                    ┌──────────────────────────────────────┐
+                    │  rekha/             DETERMINISTIC     │
+                    │  mandate → contracts → policy →      │
+                    │  approval → idempotent execution →   │
+                    │  hash-chained evidence               │
+                    └──────────────────┬───────────────────┘
+                                       │
+                    ┌──────────────────▼───────────────────┐
+                    │  Razorpay MCP server (or sandbox)    │
+                    └──────────────────────────────────────┘
 ```
 
-## Request lifecycle (spec §3)
+`recovery/` may **not** import `rekha.ledger`, `rekha.approvals`, `rekha.policy`,
+`rekha.executor`, `rekha.settlement`, or `rekha.finance.mandate`. Enforced by an AST
+check in `tests/test_layer_boundaries.py`, which includes a negative case pinning the
+detector — a boundary test that cannot fail is decoration.
 
-`rekha/proxy/lifecycle.py` implements the normative sequence for every
-governed call, in order, each stage appending its own ledger event(s)
-(spec §9.1):
+`rekha.finance.money` **is** permitted. A mandate is authority; `Money` is
+arithmetic. Forbidding a value type would push raw integers across the boundary and
+force the control plane to infer units, which is worse.
 
-1. **resolve** — look up the tool's contract in the `ContractSet` fixed for
-   the session (`session_started` pins `set_hash`). No contract + no
-   `readOnlyHint` => `contract_missing`, unless `unsafe_passthrough` is
-   explicitly configured for that tool (recorded as a `config_override` on
-   every affected event).
-2. **plan** (`Planner.plan`) — builds a `Plan` with effect estimates, in
-   priority order `native_dry_run > dry_run > contract`. Plans expire
-   (spec §5.4); re-invoking with different args invalidates a bound
-   approval.
-3. **policy** (`PolicyEngine.evaluate`) — evaluates blast-radius caps and
-   defaults (irreversible/unknown effects pause by default, spec §6.4) and
-   returns the most restrictive verdict across dimensions: `deny > pause >
-   allow`.
-4. **approval** (conditional) — a `pause` verdict parks the plan in
-   `ApprovalQueue` and returns a structured `pending_approval` result to the
-   agent instead of executing. The agent has no path to approve its own
-   action (spec §7, no-self-approval); only the CLI (`rekha approvals
-   list|approve|reject`) can resolve an item.
-5. **execute** (`SagaExecutor.run_step`) — the ordered step cycle: journal
-   the step, run its (read-only) `capture`, call the real tool, record the
-   result, materialize the `undo` args from what was captured
-   (`compensation_registered` — rewind never re-evaluates expressions),
-   commit. A crash between any two stages is recoverable from the ledger
-   alone (`executor/recovery.py`); idempotency keys prevent double-calling
-   the upstream tool on retry.
-6. **ledger** — every stage above is a hash-chained, append-only event
-   (`ledger/store.py`); `rekha verify` recomputes the chain and cross-checks
-   per-step coherence (journal/capture/result/compensation) without calling
-   any tool (`ledger/verify.py`, `replay.py`).
+## Packages
 
-## Rewind (spec §10)
+| Package | Responsibility | Determinism |
+|---|---|---|
+| `rekha/contracts/` | what each tool may do; default-deny resolution | deterministic |
+| `rekha/planner/` | turn a tool call into an explicit `Plan` before acting | deterministic |
+| `rekha/policy/` | irreversibility rules, spending caps, velocity limits | deterministic, pure folds |
+| `rekha/approvals/` | human-in-the-loop queue. CLI-only, never agent-reachable | deterministic |
+| `rekha/executor/` | idempotent execution, compensation on failure | deterministic |
+| `rekha/ledger/` | hash-chained evidence, signing, verification | deterministic |
+| `rekha/finance/` | `Money` (integer paise), `MerchantMandate` | deterministic |
+| `rekha/razorpay/` | webhook ingest, forecast recording, sequence advancement | deterministic |
+| `rekha/settlement/` | three-way reconciliation, four verdicts | deterministic |
+| `recovery/` | AI diagnosis, strategy, prioritisation, providers | **non-deterministic** |
+| `bench/` | attacks, held-out evaluation, calibration, backtest | deterministic |
+| `conformance/` | target-agnostic L1/L2/L3 suite | deterministic |
 
-`RewindService.rewind()` is a separate entry point (`rekha rewind`, its own
-CLI/process) that: fences the session first (a `session_fenced` ledger event
-— fencing is a ledger fact, not in-memory state, because `rekha run` and
-`rekha rewind` are different processes sharing only the SQLite file);
-compensates committed steps in strict reverse `step_seq` order, each
-compensation itself a mini-step through the same `PolicyEngine` (an
-over-cap undo can pause, spec §12); runs any declared `verification`; and
-reports `fully_rewound` only when every in-scope step is reversible *and*
-ended up `compensated` — never when irreversible/conditional-unmet/
-indeterminate steps are in scope, and never on a `--dry-run` (spec §10.3,
-honesty).
+## Order of checks
 
-## Zero-config client connection (E22)
+The sequence matters, and it is checked in order of authority — facts first, then the
+merchant's limits, then the model's preference. A proposal can only ever *narrow*
+what the guardrails already permit.
 
-`rekha connect`/`rekha disconnect` (`rekha/cli/connection.py`) are a
-separate orchestration layer sitting *above* the proxy above, not a change
-to it: they generate a `rekha wrap`/`rekha run` runtime for the pinned,
-bundled Filesystem pack (`rekha/bundled_packs.py`, wheel-shipped under
-`rekha/packs/filesystem/`) and register it with whichever of Codex CLI /
-Claude Code CLI / Claude Desktop are actually installed, through each
-client's own official mechanism (`rekha/cli/client_registration.py`) —
-never by rekha guessing at `~/.codex/config.toml`'s or `~/.claude.json`'s
-internal shape itself (Claude Desktop, which has no CLI, is the one
-exception: a surgical `mcpServers.<name>` JSON merge).
+1. **Mandate** — is this merchant, this action, this amount permitted at all? Checked
+   *before* contracts, planning or policy: a proposal outside the mandate should
+   never reach the machinery that would decide how to do it well.
+2. **Contract resolution** — is there a declared contract for this tool? No contract
+   means refusal. The pinned `ContractSet` *is* the agent's action space, so adding a
+   capability is a reviewable diff rather than a prompt edit.
+3. **Plan** — the effects, reversibility and amounts are made explicit before
+   anything runs.
+4. **Policy** — irreversibility, cumulative spend, per-customer velocity. Pure folds
+   over the ledger, so a decision is recomputable from evidence.
+5. **Approval** — above the threshold, a human decides. The agent has no path to the
+   queue.
+6. **Execution** — idempotent by reference id, with compensation on partial failure.
+7. **Evidence** — every decision, refusal and result appended to a hash chain.
 
-```mermaid
-flowchart TB
-    Connect["rekha connect\n(rekha/cli/connection.py)"]
-    Connect --> Preflight["build runtime + real MCP\ninitialize/list_tools preflight\n(spawns the EXACT argv to be registered)"]
-    Preflight -- pass --> Snapshot["snapshot every target\n(FileSnapshot: bytes + sha256, or absence)"]
-    Snapshot --> Manifest[("connecting\n.rekha/connection.json")]
-    Manifest --> Register["register each detected client\nvia its OWN official CLI\n(codex/claude adapters)"]
-    Register --> Hooks["install project-scoped\nClaude Code hooks\n(.claude/settings.json)"]
-    Hooks --> Verify["re-verify: read back each client's\nOWN recorded registration,\nreal MCP initialize/list_tools again"]
-    Verify -- pass --> Connected[("connected")]
-    Register -- any failure --> Rollback["reverse-order compare-and-swap\nrestore (exact bytes/absence)"]
-    Hooks -- any failure --> Rollback
-    Verify -- any failure --> Rollback
-    Rollback -- fully restored --> Reverted["transaction failed,\noriginal error reported"]
-    Rollback -- "a target changed\nconcurrently" --> Incomplete[("rollback_incomplete")]
+## Data flow for one recovery
+
+```
+Razorpay failed payment
+   │
+   ├─ PaymentSnapshot        narrow view: error fields only. No keys, no tokens,
+   │                         no card data. `notes` IS included, because that is
+   │                         where a real injection arrives.
+   ├─ diagnose_batch()       10 payments per LLM call. Batching is not only for
+   │                         cost: seeing a batch lets the model notice that
+   │                         eleven failures share a bank and are one outage.
+   ├─ RecoveryProposal       cause, opening action, amount, expected recovery,
+   │                         plus an ordered follow-up plan. Validated wholesale;
+   │                         a malformed entry is dropped with a recorded reason,
+   │                         never patched into something plausible.
+   ├─ clamped()              expected recovery capped at the original amount. A
+   │                         model claiming to recover more than was lost is not
+   │                         optimistic, it is wrong.
+   ├─ prioritize()           deterministic ranking under a budget
+   ├─ record_proposal()      the forecast written to the ledger BY THE CONTROL
+   │                         PLANE, so the AI cannot curate its own track record
+   ├─ [ the seven checks above ]
+   ├─ execution              a payment link created, or a reminder sent
+   ├─ webhook                Razorpay says what the customer actually did
+   └─ correlate_recoveries() requested ≠ recovered, joined as a pure fold
 ```
 
-The manifest (`.rekha/connection.json`, `rekha/cli/connection_models.py`)
-is the sole authority for `disconnect`/`repair`/`doctor`: every target it
-tracks carries a byte-exact before-snapshot and a post-write hash, so
-removal is always compare-and-swap (`rekha disconnect`) — a target that
-changed since Rekha's own last write is reported, never silently
-overwritten, and the connection is left `rollback_incomplete` instead of
-guessing which side of the conflict to keep. `inspect_connection` is
-read-only and distinguishes `healthy` / `missing` / `modified` /
-`conflict` per target without ever spawning a process.
+## Multi-step sequencing
 
-**Scope, said plainly:** current-directory-only, Filesystem-pack-only,
-one pinned upstream version — this is the single most common zero-config
-case, not a general pack installer (that remains `rekha wrap`/`rekha
-init`/`rekha bootstrap` above, by hand, for any other upstream server).
-Codex gets MCP-only protection: there is no Codex-side native-tool hook
-this integrates with, so `rekha connect` never claims one.
+`rekha/razorpay/sequence.py` advances a plan one step at a time and **never
+executes**. It returns the next step it believes permitted; the caller puts that
+through the same seven checks any first action takes.
 
-## Conformance
+There is deliberately no fast path for an "already approved" step. Approval was
+granted against the situation as it stood — by day four the payment may be refunded,
+the customer may have paid by other means, or the cap may be exhausted.
 
-`conformance/` (package `rekha-conformance`) extracts every
-`@conformance(level=...)` test into a target-agnostic suite driven by a
-6-method `ConformanceTarget` adapter, so any MCP proxy — not just Rekha —
-can claim an L1/L2/L3 badge against the same tests. See `docs/spec.md` §13.
+State is **derived** from the ledger, never stored. A stored cursor can disagree with
+the evidence, and when it does the agent is acting on a version of reality nobody can
+audit.
+
+Two invariants live here rather than in the prompt:
+
+- **At most one live payment link per payment.** Two live links means the customer can
+  pay twice. A step that would create a second demand returns `requires_cancel_of`.
+- **Contact limits are configuration.** Three touches, seven days, twelve-hour
+  minimum gap. Asked "how many times should I contact this customer?", a model gives
+  a plausible answer that varies between runs — and this is a decision with legal and
+  brand consequences.
+
+## Measurement
+
+Ground truth exists because the cohort is synthetic: we chose why each payment failed
+when we generated it. It lives under a `_truth` key that the sandbox strips at its
+single read boundary, so it cannot reach the model however a payment is fetched.
+
+Simulated outcomes are drawn from that true probability, **never** from the model's
+own forecast — otherwise every calibration score would be perfect by construction.
+
+| Harness | Question |
+|---|---|
+| `bench/attacks.py` | Are attacks blocked, *and* is legitimate traffic left alone? |
+| `bench/evaluate.py` | Is the diagnosis right, versus a majority and a keyword baseline? |
+| `bench/calibration.py` | Are the probabilities any good, and on how many outcomes? |
+| `bench/backtest.py` | What does sequencing earn, and at what cost in contacts? |
+
+## Invariants worth knowing before changing anything
+
+- **Money is integer minor units.** No `__float__`. Currency mismatch raises. Excess
+  precision refused, not rounded.
+- **Default-deny.** A tool with no contract is refused, not allowed.
+- **Requested ≠ recovered.** A created link is something we did; recovery is a webhook
+  fact. Enforced by test.
+- **Honest verdicts.** `pending` and `unverifiable` never read as `matched`.
+- **Fee variance is not a mismatch.** Flagging it would false-positive on every
+  correct payment.
+- **Payment age is anchored to the newest payment in the batch**, not the wall clock.
+  Otherwise recorded fixtures go stale hourly and two runs disagree.
+- **Prompts are hashed into every proposal.** Editing a prompt changes the recorded
+  version, so behaviour cannot drift invisibly — and invalidates the fixtures
+  recorded against it.

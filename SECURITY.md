@@ -49,7 +49,7 @@ that *is* worth reporting.
 
 Please **do not** open a public issue with exploit details. Instead, use
 GitHub's private reporting flow:
-[Report a vulnerability](https://github.com/Jairogelpi/rekha/security/advisories/new)
+[Report a vulnerability](https://github.com/rahuljaiprakash/rekha/security/advisories/new)
 (repo → Security tab → "Report a vulnerability").
 
 As of this writing, GitHub's private vulnerability reporting feature has
