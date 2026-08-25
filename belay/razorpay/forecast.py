@@ -49,6 +49,7 @@ def record_proposal(
     provider: str,
     model: str,
     selected: bool,
+    follow_up: list[dict[str, Any]] | None = None,
     step_seq: int | None = None,
 ) -> Event:
     """Append one AI forecast to the ledger.
@@ -57,6 +58,12 @@ def record_proposal(
     pursue. Both are recorded, because a calibration score computed only over the
     actions taken is biased: the agent chose those precisely because it was
     confident about them, so scoring only those measures confidence on easy cases.
+
+    `follow_up` persists the proposed later steps. A recovery sequence spans days,
+    so the plan has to outlive the process that produced it -- and recording it here
+    means the plan is evidence. A merchant reviewing a third contact attempt can see
+    it was part of a plan approved on day one, rather than an agent that decided to
+    keep going.
     """
     return ledger.append(
         session_id,
@@ -84,6 +91,7 @@ def record_proposal(
             "provider": provider,
             "model": model,
             "selected": selected,
+            "follow_up": list(follow_up or []),
         },
         step_seq=step_seq,
     )

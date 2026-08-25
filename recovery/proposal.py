@@ -80,6 +80,20 @@ class Strategy(StrEnum):
     #: customer has a UPI id on file.
     UPI_LINK = "upi_link"
 
+    #: Resend an EXISTING link rather than creating another one. A second touch
+    #: with no second payment obligation: the customer who ignored a link on
+    #: Tuesday may act on the same link on Friday. Maps to `send_payment_link`.
+    #:
+    #: Distinct from the two link-creation strategies on purpose. Creating a
+    #: second link to chase the first is how a customer ends up able to pay twice.
+    REMIND = "remind"
+
+    #: Deliberately do nothing YET, and reconsider after a stated delay. Not the
+    #: same as `DO_NOTHING`: this asserts the payment is recoverable but that now
+    #: is the wrong moment -- an insufficient-funds failure two days before payday
+    #: is the canonical case. Has no tool, because waiting is not an action.
+    WAIT = "wait"
+
     #: Nothing is worth doing. A real and important answer: an agent that
     #: recommends chasing every failure is not exercising judgement.
     DO_NOTHING = "do_nothing"
@@ -162,8 +176,34 @@ def _optional_str(value: object) -> str | None:
     return str(value) if isinstance(value, str) and value else None
 
 
+class RecoveryStep(BaseModel):
+    """One later step in a recovery sequence, with when to take it.
+
+    The timing is the point. `insufficient_funds` two days before payday and
+    `insufficient_funds` the day after payday are the same error code and
+    completely different decisions, and nothing in the payment record says which
+    one you are looking at -- that judgement is the model's contribution.
+
+    A REQUEST, NOT A SCHEDULE. Proposing a step does not reserve the right to take
+    it. Every step is re-checked against the mandate, the caps and the velocity
+    limits at the moment it would run, by `belay.razorpay.sequence`. An approved
+    plan is not a standing authorization to act four times.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    strategy: Strategy
+    #: Hours to wait after the PREVIOUS step before taking this one. Relative
+    #: rather than absolute so a plan stays valid if approval is delayed -- an
+    #: absolute timestamp proposed on Monday and approved on Thursday would
+    #: describe a moment already past.
+    wait_hours: int = Field(default=0, ge=0, le=336)
+    #: Why this step, at this delay. Shown to the merchant, never parsed.
+    rationale: str = ""
+
+
 class RecoveryProposal(BaseModel):
-    """One proposed recovery action. The AI layer's only output.
+    """One proposed recovery action, plus what to do if it does not work.
 
     Strict (`extra="forbid"`): a model that invents a field is producing something
     nobody designed, and accepting it silently is how an unreviewed capability
@@ -187,6 +227,14 @@ class RecoveryProposal(BaseModel):
     #: Why this strategy. Recorded in evidence so a human reviewing an approval
     #: sees the argument, not just the number.
     reasoning: str
+
+    #: What to do if `strategy` does not produce a payment, in order.
+    #:
+    #: Empty means one shot and done, which was the whole system's behaviour
+    #: before sequencing existed. `strategy` remains the FIRST action rather than
+    #: becoming `follow_up[0]`, so everything that ranks, records or executes a
+    #: single proposal keeps working unchanged and the sequence is purely additive.
+    follow_up: tuple[RecoveryStep, ...] = ()
 
     #: Provenance of the decision. Not model-supplied -- filled in by the caller.
     prompt_version: str = "unknown"
@@ -214,19 +262,22 @@ class RecoveryProposal(BaseModel):
     @property
     def is_actionable(self) -> bool:
         """Whether this proposal asks for anything to be done at all."""
-        return self.strategy is not Strategy.DO_NOTHING
+        return self.strategy not in (Strategy.DO_NOTHING, Strategy.WAIT)
 
     @property
     def tool(self) -> str:
         """The Razorpay tool this strategy maps to.
 
-        Raises for `DO_NOTHING`, which has no tool by design -- callers must
-        check `is_actionable` rather than discovering it here.
+        Raises for the strategies that have no tool by design (`DO_NOTHING`,
+        `WAIT`) -- callers must check `is_actionable` rather than discovering it
+        here.
         """
         if self.strategy is Strategy.UPI_LINK:
             return "create_payment_link_upi"
         if self.strategy is Strategy.PAYMENT_LINK:
             return "create_payment_link"
+        if self.strategy is Strategy.REMIND:
+            return "send_payment_link"
         raise ValueError(f"{self.strategy} maps to no tool; check `is_actionable` first")
 
 
