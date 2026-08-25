@@ -69,7 +69,8 @@ def test_fast_gate_has_the_effective_safe_branch_coverage_configuration() -> Non
     fail_under = project_config["tool"]["coverage"]["report"]["fail_under"]
 
     assert _contains_option(addopts, "--cov-branch")
-    assert _contains_option(addopts, "--cov") or _contains_option(addopts, "--cov=belay")
+    assert _contains_option(addopts, "--cov=belay")
+    assert _contains_option(addopts, "--cov=recovery")
     assert not _contains_option(addopts, "--no-cov")
 
     effective = _effective_marker_expression(addopts)

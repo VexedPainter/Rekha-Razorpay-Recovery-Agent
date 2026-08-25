@@ -95,7 +95,7 @@ strict = false
 ignore_errors = true
 
 [tool.pytest.ini_options]
-addopts = "--cov=belay --cov-branch --cov-report=term-missing -m \"not slow and not live_conformance and not live_llm and not live_razorpay\""
+addopts = "--cov=belay --cov=recovery --cov-branch --cov-report=term-missing -m \"not slow and not live_conformance and not live_llm and not live_razorpay\""
 testpaths = ["tests"]
 markers = [
     "slow: starts a real MCP subprocess or otherwise runs noticeably longer than the fast suite",
@@ -105,7 +105,10 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["belay"]
+# The recovery package is measured too: it is a first-class package with real
+# logic, and leaving the AI layer unmeasured would hide exactly the code most
+# likely to have been written in a hurry.
+source = ["belay", "recovery"]
 
 [tool.coverage.report]
 # Measured branch coverage was 83.95% on 2026-08-25, immediately after the

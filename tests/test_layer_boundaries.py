@@ -15,9 +15,17 @@ a financial fact directly:
 - `belay.policy`     -- it cannot evaluate, relax, or bypass a limit.
 - `belay.executor`   -- it cannot execute; it can only ask the proxy to.
 - `belay.settlement` -- it cannot mark its own outcome verified.
-- `belay.finance`    -- it cannot construct or reinterpret a mandate.
+- `belay.finance.mandate` -- it cannot construct or reinterpret a mandate.
 
-What `recovery/` *may* import is deliberately narrow: `belay.errors` (to
+`belay.finance.money` is deliberately NOT forbidden, and the reason is the line
+this whole test is drawing. A `MerchantMandate` is *authority*: if the AI layer
+could build one it could widen its own permissions, and the boundary would be
+decorative. `Money` is *arithmetic*: an immutable integer amount whose possession
+grants nothing. Forbidding it would force the AI layer to pass raw ints around
+and have the control plane infer their units -- precisely the bug `Money` exists
+to prevent. Denying a value type buys no safety and costs correctness.
+
+What `recovery/` may otherwise import is deliberately narrow: `belay.errors` (to
 recognise a refusal it received) and the MCP client SDK (its one route
 outward, through the governed proxy). Everything else it needs, it must be
 handed.
@@ -49,7 +57,19 @@ FORBIDDEN_ROOTS = frozenset(
         "belay.policy",
         "belay.executor",
         "belay.settlement",
-        "belay.finance",
+        # Note `belay.finance.mandate`, not `belay.finance`. The distinction is
+        # between a *capability* and a *value type*:
+        #
+        #   `mandate` is authority. If the AI layer could construct or reinterpret
+        #   a `MerchantMandate`, it could widen its own permissions, and the whole
+        #   boundary would be decorative.
+        #
+        #   `money` is arithmetic. `Money` is an immutable integer amount with a
+        #   currency; holding one grants nothing. Forbidding it would force the AI
+        #   layer to pass raw ints around and have the control plane guess at
+        #   their units -- which is exactly the class of bug `Money` exists to
+        #   prevent. Denying a value type buys no safety and costs correctness.
+        "belay.finance.mandate",
     }
 )
 
@@ -122,6 +142,23 @@ def test_the_boundary_check_actually_detects_a_violation() -> None:
         "belay.ledger",
         "belay.policy",
         "belay.approvals",
+    }
+
+
+def test_money_is_allowed_but_mandate_is_not() -> None:
+    """The capability/value-type line, pinned.
+
+    Getting this backwards in either direction is a real mistake: forbidding
+    `Money` would push raw ints across the boundary, and permitting `mandate`
+    would let the AI layer rewrite its own authority.
+    """
+    assert _violations(_imported_modules("from belay.finance.money import Money")) == set()
+    assert _violations(_imported_modules("from belay.finance import money")) == set()
+    assert _violations(
+        _imported_modules("from belay.finance.mandate import MerchantMandate")
+    ) == {"belay.finance.mandate"}
+    assert _violations(_imported_modules("import belay.finance.mandate")) == {
+        "belay.finance.mandate"
     }
 
 

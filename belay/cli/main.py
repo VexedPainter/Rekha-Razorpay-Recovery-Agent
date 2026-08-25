@@ -1014,6 +1014,11 @@ def counterfactual_command(
         )
 
 
+from belay.cli.recover import register as _register_recover  # noqa: E402
+
+_register_recover(app)
+
+
 def main() -> None:
     app()
 
