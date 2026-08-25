@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from belay.contracts.expressions import parse as parse_expression
 from belay.errors import BelayError
+from belay.finance.money import Money
 
 
 class _Strict(BaseModel):
@@ -121,10 +122,20 @@ class SqlHint(_Strict):
 
 
 class Effect(_Strict):
+    """One declared effect of a tool call (spec §4.4).
+
+    `amount` is `Money` (integer minor units) rather than a loose dict, so a
+    `spend` effect's value is exact from declaration through policy evaluation
+    to settlement verification. A contract may write it either way::
+
+        amount: {major: "2400.00", currency: INR}
+        amount: {minor_units: 240000, currency: INR}
+    """
+
     type: TLiteral["create", "update", "delete", "send", "spend", "execute", "read"]
     resource: str
     count: str | None = None
-    amount: dict[str, object] | None = None
+    amount: Money | None = None
     recipients: str | None = None
 
 

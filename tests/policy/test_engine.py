@@ -5,13 +5,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from belay.clock import FixedClock
+from belay.finance.money import Money
 from belay.planner.model import EffectEstimate, Plan
 from belay.policy.engine import PolicyEngine
 from belay.policy.model import (
     Cap,
     CapMatch,
     Defaults,
-    MaxAmount,
     PolicyDoc,
     QuietHours,
     ToolRule,
@@ -77,17 +77,96 @@ def test_cap_spend_over_denies() -> None:
         caps=[
             Cap(
                 match=CapMatch(effect="spend"),
-                max_amount=MaxAmount(value=50, currency="EUR"),
+                max_amount=Money.from_major("50.00", "EUR"),
                 over="deny",
             )
         ]
     )
     effects = [
-        EffectEstimate(type="spend", resource="payments", amount={"value": 75, "currency": "EUR"})
+        EffectEstimate(
+            type="spend", resource="payments", amount=Money.from_major("75.00", "EUR")
+        )
     ]
     result = PolicyEngine().evaluate(_plan(effects=effects), policy)
     assert result.verdict == "deny"
     assert result.reasons == ["caps[0]"]
+
+
+def test_cap_spend_exactly_at_the_limit_is_allowed() -> None:
+    """The cap fires strictly *over* the limit, not at it -- `> cap`, never `>=`.
+
+    Pinned because an off-by-one here means a merchant who authorizes exactly
+    Rs 50,000 of recovery spend can never spend the last rupee of it.
+    """
+    policy = PolicyDoc(
+        caps=[
+            Cap(
+                match=CapMatch(effect="spend"),
+                max_amount=Money.from_major("50.00", "EUR"),
+                over="deny",
+            )
+        ]
+    )
+    effects = [
+        EffectEstimate(
+            type="spend", resource="payments", amount=Money.from_major("50.00", "EUR")
+        )
+    ]
+    assert PolicyEngine().evaluate(_plan(effects=effects), policy).verdict == "allow"
+
+
+def test_cap_sums_multiple_spend_effects_exactly() -> None:
+    """Two sub-cap amounts that together exceed the cap must fire it.
+
+    In floats, 0.1 + 0.2 > 0.3 spuriously; in `Money` the sum is exact, so
+    this test also pins that a cap is not evaded by, nor falsely tripped by,
+    representation error.
+    """
+    policy = PolicyDoc(
+        caps=[
+            Cap(
+                match=CapMatch(effect="spend"),
+                max_amount=Money.from_major("0.30", "EUR"),
+                over="deny",
+            )
+        ]
+    )
+    exact = [
+        EffectEstimate(type="spend", resource="p", amount=Money.from_major("0.10", "EUR")),
+        EffectEstimate(type="spend", resource="p", amount=Money.from_major("0.20", "EUR")),
+    ]
+    assert PolicyEngine().evaluate(_plan(effects=exact), policy).verdict == "allow"
+
+    over = [
+        EffectEstimate(type="spend", resource="p", amount=Money.from_major("0.10", "EUR")),
+        EffectEstimate(type="spend", resource="p", amount=Money.from_major("0.21", "EUR")),
+    ]
+    assert PolicyEngine().evaluate(_plan(effects=over), policy).verdict == "deny"
+
+
+def test_a_cap_does_not_apply_across_currencies() -> None:
+    """A EUR cap does not sum an INR effect: there is no rate available here.
+
+    This is deliberate, and it is not the only defence -- `MerchantMandate`
+    pins the permitted currency at the outer boundary, before policy runs. The
+    behaviour is pinned so that anyone tempted to "fix" it by inventing a
+    conversion has to delete a test that says why not.
+    """
+    policy = PolicyDoc(
+        caps=[
+            Cap(
+                match=CapMatch(effect="spend"),
+                max_amount=Money.from_major("50.00", "EUR"),
+                over="deny",
+            )
+        ]
+    )
+    effects = [
+        EffectEstimate(
+            type="spend", resource="payments", amount=Money.from_major("9999.00", "INR")
+        )
+    ]
+    assert PolicyEngine().evaluate(_plan(effects=effects), policy).verdict == "allow"
 
 
 def test_most_restrictive_verdict_wins_across_dimensions() -> None:

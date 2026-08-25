@@ -17,6 +17,7 @@ from datetime import datetime, time
 from fnmatch import fnmatch
 
 from belay.clock import Clock, SystemClock
+from belay.finance.money import total as sum_money
 from belay.ledger.store import LedgerStore
 from belay.planner.model import EffectEstimate, Plan
 from belay.policy.baseline import BaselineStore
@@ -64,16 +65,20 @@ def _evaluate_cap(cap: Cap, plan: Plan) -> Verdict | None:
             return cap.over
 
     if cap.max_amount is not None:
-        total_amount = 0.0
-        for e in matching:
-            if e.amount is None:
-                continue
-            if e.amount.get("currency") != cap.max_amount.currency:
-                continue
-            value = e.amount.get("value")
-            if isinstance(value, int | float):
-                total_amount += float(value)
-        if total_amount > cap.max_amount.value:
+        # Exact integer summation, never float accumulation: a cap is a
+        # comparison, and summing before comparing is precisely where float
+        # error accumulates toward authorizing more than was permitted.
+        currency = cap.max_amount.currency
+        amounts = [
+            e.amount for e in matching if e.amount is not None and e.amount.currency == currency
+        ]
+        # A `spend` effect denominated in some *other* currency is not summed
+        # here, because there is no sound conversion rate available to a policy
+        # engine that must stay a pure function. That would be a cap-evasion
+        # route if it were the only defence, so it isn't: `MerchantMandate`
+        # (belay/finance/mandate.py) pins the permitted currency at the outer
+        # boundary, before planning or policy is reached at all.
+        if amounts and sum_money(amounts, currency=currency) > cap.max_amount:
             return cap.over
 
     return None

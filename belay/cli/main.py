@@ -609,13 +609,15 @@ def run(
         "--on-behalf-of",
         help="Optional: the accountable identity this initiator acts for (E14).",
     ),
-    intent_contract: str = typer.Option(
+    mandate: str = typer.Option(
         "",
-        "--intent-contract",
-        help="Intent contract YAML (adoption/DX, not spec-numbered): 'intent: ...', "
-        "'allowed_scope'/'forbidden_scope' path globs, 'forbidden_tools', "
-        "'budgets.files_changed'. A call violating it is denied before the upstream "
-        "ever sees it.",
+        "--mandate",
+        help="Merchant mandate YAML (ADR 0028): the merchant's grant of authority -- "
+        "'allowed_actions'/'forbidden_actions', 'max_per_action', 'max_cumulative' "
+        "over a 'window', 'allowed_methods', 'approval_threshold'. Checked before "
+        "contracts, planning, or policy; an action outside the mandate is refused "
+        "before the upstream ever sees it, and the mandate's hash is pinned into "
+        "the session's signed evidence.",
     ),
 ) -> None:
     """Start the Belay MCP proxy over stdio (spec §3, Appendix C)."""
@@ -638,11 +640,11 @@ def run(
     effective_initiated_by = initiated_by or wrap_config.initiated_by or "unknown"
     effective_on_behalf_of = on_behalf_of or wrap_config.on_behalf_of or None
 
-    intent_contract_obj = None
-    if intent_contract:
-        from belay.intent.loader import load_intent_contract
+    mandate_obj = None
+    if mandate:
+        from belay.finance.mandate import load_mandate
 
-        intent_contract_obj = load_intent_contract(intent_contract)
+        mandate_obj = load_mandate(mandate)
 
     async def _main() -> None:
         async with connect_stdio(
@@ -655,7 +657,7 @@ def run(
                 session_id,
                 unsafe_passthrough_tools=frozenset(wrap_config.unsafe_passthrough),
                 policy=policy_doc,
-                intent_contract=intent_contract_obj,
+                mandate=mandate_obj,
             )
             proxy.lifecycle.start_session(effective_initiated_by, effective_on_behalf_of)
             await proxy.run_stdio()

@@ -21,9 +21,10 @@ from mcp.types import CallToolResult, TextContent, Tool
 
 from belay.contracts.model import ContractSet
 from belay.errors import BelayError
+from belay.finance.mandate import MerchantMandate
 from belay.ledger.store import LedgerStore
 from belay.policy.model import PolicyDoc, default_policy
-from belay.proxy.lifecycle import Lifecycle
+from belay.proxy.lifecycle import ActionDescriber, Lifecycle
 from belay.proxy.upstream import UpstreamClient
 
 _RESERVED_ARG_SCHEMAS: dict[str, dict[str, str]] = {
@@ -68,7 +69,8 @@ class BelayProxyServer:
         session_id: str,
         unsafe_passthrough_tools: frozenset[str] = frozenset(),
         policy: PolicyDoc | None = None,
-        intent_contract: Any = None,
+        mandate: MerchantMandate | None = None,
+        action_describer: ActionDescriber | None = None,
     ) -> None:
         self._upstream = upstream
         self.lifecycle = Lifecycle(
@@ -77,7 +79,8 @@ class BelayProxyServer:
             ledger=ledger,
             session_id=session_id,
             policy=policy if policy is not None else default_policy(),
-            intent_contract=intent_contract,
+            mandate=mandate,
+            action_describer=action_describer,
         )
         self._server: Server[Any, Any] = Server("belay")
         self._register_handlers()

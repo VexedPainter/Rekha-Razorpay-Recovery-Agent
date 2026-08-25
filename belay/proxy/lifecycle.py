@@ -13,13 +13,15 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from belay.approvals.queue import ApprovalAlreadyConsumed, ApprovalQueue
 from belay.clock import Clock, SystemClock
 from belay.contracts.model import Contract, ContractSet
 from belay.errors import BelayError
 from belay.executor.saga import SagaExecutor
+from belay.finance.mandate import MerchantMandate, check_mandate
+from belay.finance.money import Money
 from belay.ledger.model import STEP_FAILED
 from belay.ledger.redact import redact
 from belay.ledger.store import LedgerStore
@@ -29,8 +31,10 @@ from belay.policy.engine import PolicyEngine
 from belay.policy.explain import explain
 from belay.policy.model import PolicyDoc, PolicyResult, default_policy
 
-if TYPE_CHECKING:
-    from belay.intent.model import IntentContract
+#: Reads `(amount, method)` out of one action's arguments, for mandate
+#: enforcement. Returns `(None, None)` for an action with neither -- a read, a
+#: status check -- which the mandate then checks by name only.
+ActionDescriber = Callable[[str, dict[str, Any]], tuple[Money | None, str | None]]
 
 
 @dataclass(frozen=True)
@@ -257,9 +261,24 @@ class Lifecycle:
     policy_stage: PolicyStage | None = None
     approval_stage: ApprovalStage | None = None
     execute_stage: ExecuteStage | None = None
-    intent_contract: IntentContract | None = None
+    mandate: MerchantMandate | None = None
+    action_describer: ActionDescriber | None = None
+    """How to read an action's monetary amount and payment method out of its
+    arguments, so `MerchantMandate` can be enforced against them.
+
+    Injected rather than hard-coded because `belay/proxy/` must stay
+    domain-agnostic: it governs whatever upstream it was pointed at, and only
+    the integration knows that Razorpay spells the amount `args["amount"]` in
+    paise and the method `args["method"]`. `belay/razorpay/` supplies the
+    Razorpay implementation.
+
+    `None` means the mandate is enforced on the action *name* alone -- still a
+    real boundary (it is what refuses a refund), just without amount or method
+    checks. Deliberately not defaulted to a guess at argument names: silently
+    reading the wrong key would mean silently enforcing no ceiling at all,
+    which is the worst possible failure mode for this field.
+    """
     _step_seq: int = field(default=0, init=False, repr=False)
-    _files_touched: frozenset[str] = field(default=frozenset(), init=False, repr=False)
     _policy_hash: str = field(default="", init=False, repr=False)
     """Computed once in `__post_init__` (R1.7.1/R1.7.4, ADR 0025):
     `f"contracts={set_hash};policy={canonical_hash(PolicyDoc)}"`. Shared
@@ -304,6 +323,34 @@ class Lifecycle:
                 SagaExecutor(ledger=self.ledger, contract_set=self.contract_set)
             )
 
+    def _describe_action(
+        self, tool: str, args: dict[str, Any]
+    ) -> tuple[Money | None, str | None]:
+        """`(amount, method)` for this action, via the injected `action_describer`.
+
+        A describer that raises is treated as a refusal rather than being
+        allowed to propagate: it runs on the mandate path, before any limit has
+        been applied, so a malformed argument payload must not become a way to
+        skip the mandate check entirely.
+        """
+        if self.action_describer is None:
+            return None, None
+        try:
+            return self.action_describer(tool, args)
+        except BelayError:
+            raise
+        except Exception as exc:
+            raise BelayError(
+                "mandate_violation",
+                {
+                    "reason": "could not read this action's amount or method from its "
+                    "arguments, so the mandate's ceilings cannot be applied to it",
+                    "field": "max_per_action",
+                    "tool": tool,
+                    "error": str(exc),
+                },
+            ) from exc
+
     def start_session(self, initiated_by: str, on_behalf_of: str | None = None) -> None:
         """Emit `session_started` / `contract_set_pinned`, fixing this session's `set_hash`.
 
@@ -315,12 +362,14 @@ class Lifecycle:
         session (e.g. a scheduler service account) may differ from the
         accountable human it acts for.
 
-        If `self.intent_contract` is set, its canonical hash (same mechanism
-        as `set_hash`, `belay/canonical.py`) is folded into `session_started`'s
-        payload -- part of the hash chain and therefore the signed evidence
-        bundle (E13) from the moment the session starts, not a fact asserted
-        after the fact by whatever `--intent-contract` file `belay export-pr`
-        happens to be pointed at later (adoption/DX, not spec-numbered).
+        If `self.mandate` is set, its canonical hash and the merchant id are
+        folded into `session_started`'s payload -- same mechanism as `set_hash`
+        (`belay/canonical.py`), so which grant of authority governed this
+        session is part of the hash chain, and therefore part of the signed
+        evidence bundle, from the moment the session starts. It is never a fact
+        asserted afterwards by whichever `--mandate` file happens to be on disk
+        at report time, and a mandate swapped mid-session cannot retroactively
+        govern calls already made (ADR 0028).
 
         `policy_hash` (R1.7.4, ADR 0025) is folded in unconditionally --
         the same value `ApprovalStage` records against every
@@ -334,10 +383,9 @@ class Lifecycle:
             "tool_count": len(self.contract_set.contracts),
             "policy_hash": self._policy_hash,
         }
-        if self.intent_contract is not None:
-            from belay.canonical import canonical_hash
-
-            payload["intent_contract_hash"] = canonical_hash(self.intent_contract.model_dump())
+        if self.mandate is not None:
+            payload["mandate_hash"] = self.mandate.hash()
+            payload["merchant_id"] = self.mandate.merchant_id
         self.ledger.append(
             self.session_id,
             "session_started",
@@ -374,32 +422,44 @@ class Lifecycle:
         step_seq = self._step_seq
         unsafe = tool in self.unsafe_passthrough_tools
 
-        if self.intent_contract is not None:
-            from belay.intent.enforce import _normalize, check_intent_contract
-
-            violation = check_intent_contract(
-                self.intent_contract, tool, args, self._files_touched
-            )
+        # The mandate is checked FIRST, before contract resolution, planning, or
+        # policy. Those layers answer "is this action safe?"; the mandate answers
+        # the prior question "did the merchant authorize this agent to do this
+        # kind of thing at all?" -- and a refusal there must not depend on the
+        # rest of the pipeline having run successfully.
+        if self.mandate is not None:
+            amount, method = self._describe_action(tool, args)
+            violation = check_mandate(self.mandate, tool, amount=amount, method=method)
             if violation is not None:
                 self.ledger.append(
                     self.session_id,
                     STEP_FAILED,
-                    {
-                        "tool": tool,
-                        "args": args,
-                        "error": {"code": "policy_denied", "detail": violation.detail},
-                        "intent_contract_violation": violation.reason,
-                    },
+                    redact(
+                        {
+                            "tool": tool,
+                            "args": args,
+                            "error": {
+                                "code": "mandate_violation",
+                                "detail": violation.detail,
+                            },
+                            "mandate_violation": violation.reason,
+                            "mandate_field": violation.field,
+                            "mandate_hash": self.mandate.hash(),
+                        },
+                        self.contract_set.resolve(tool),
+                    ),
                     step_seq=step_seq,
                     set_hash=self.contract_set.set_hash,
                 )
                 raise BelayError(
-                    "policy_denied",
-                    {"reason": f"intent_contract:{violation.reason}", **violation.detail},
+                    "mandate_violation",
+                    {
+                        "reason": violation.reason,
+                        "field": violation.field,
+                        "mandate_hash": self.mandate.hash(),
+                        **violation.detail,
+                    },
                 )
-            path = args.get("path")
-            if isinstance(path, str):
-                self._files_touched = self._files_touched | {_normalize(path)}
 
         try:
             resolved = resolve(

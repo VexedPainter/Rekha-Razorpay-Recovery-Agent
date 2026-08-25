@@ -8,6 +8,8 @@ from typing import Literal as TLiteral
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from belay.finance.money import Money
+
 Verdict = TLiteral["allow", "pause", "deny"]
 
 
@@ -67,24 +69,43 @@ class CapMatch(_Strict):
 
 
 class MaxAmount(_Strict):
+    """Deprecated alias kept only so an existing policy document keeps loading.
+
+    Superseded by `belay/finance/money.py::Money` (ADR 0028). `Cap.max_amount`
+    is a `Money` now; this remains because deleting a public model class is a
+    breaking change for anyone holding a YAML policy written against it, and
+    `Money` accepts the same `{value, currency}` shape only by explicit
+    conversion, never implicitly.
+    """
+
     value: float
     currency: str
 
+    def to_money(self) -> Money:
+        """Convert to `Money`, refusing to launder the float silently.
+
+        Goes through the decimal string form rather than `float` arithmetic,
+        so `{"value": 2400.10}` becomes exactly 240010 paise or raises.
+        """
+        return Money.from_major(str(self.value), self.currency)
+
 
 class Cap(_Strict):
-    """A blast-radius cap (spec §6.1). `per` is currently informational only.
+    """A blast-radius cap (spec §6.1).
 
-    # ponytail: `per: session` needs a session-scoped running total across
-    # multiple plans; `PolicyEngine.evaluate()` is a pure function of one
-    # plan, so v0.1 evaluates every cap against that single plan only (`per:
-    # call` semantics). Add a session accumulator (likely in the ledger, via
-    # `plan_created`/`policy_evaluated` replay) when a real multi-call budget
-    # is needed.
+    `per: call` evaluates against the single plan in hand. `per: session` is
+    an aggregate over the session's prior activity and is evaluated by
+    `belay/policy/cumulative.py`, not by `_evaluate_cap` -- see that module.
+
+    `max_amount` is `Money` (integer minor units), not a float: a cap is a
+    comparison, and a cumulative cap sums before comparing, so float error
+    accumulates toward authorizing more than the merchant permitted. See
+    `belay/finance/money.py`.
     """
 
     match: CapMatch
     max_count: int | None = None
-    max_amount: MaxAmount | None = None
+    max_amount: Money | None = None
     max_recipients: int | None = None
     per: TLiteral["call", "session"] = "call"
     over: Verdict

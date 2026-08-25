@@ -10,6 +10,7 @@ from typing import Literal as TLiteral
 from pydantic import BaseModel, ConfigDict, Field
 
 from belay.contracts.model import Contract
+from belay.finance.money import Money
 
 EffectType = TLiteral["create", "update", "delete", "send", "spend", "execute", "read"]
 Basis = TLiteral["native_dry_run", "sql_simulator", "dry_run", "contract"]
@@ -26,7 +27,7 @@ class EffectEstimate(BaseModel):
     count: str | None = None
     estimate: bool = False
     basis: Basis = "contract"
-    amount: dict[str, Any] | None = None
+    amount: Money | None = None
     recipients: str | None = None
 
     def upper_bound(self) -> int | None:
