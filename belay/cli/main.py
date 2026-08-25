@@ -1023,6 +1023,9 @@ _register_webhooks(app)
 from belay.cli.settlement import register as _register_settlement  # noqa: E402
 
 _register_settlement(app)
+from belay.cli.bench import register as _register_bench  # noqa: E402
+
+_register_bench(app)
 
 
 def main() -> None:
