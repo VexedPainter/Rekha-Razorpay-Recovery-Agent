@@ -61,14 +61,33 @@ class GeminiProvider:
         candidates = body.get("candidates")
         if not isinstance(candidates, list) or not candidates:
             raise ProviderError(f"no candidates in response: {json.dumps(body)[:300]}")
-        parts = candidates[0].get("content", {}).get("parts")
+
+        candidate = candidates[0]
+        parts = candidate.get("content", {}).get("parts")
         if not isinstance(parts, list) or not parts:
             # A truncated or safety-blocked response lands here. Surfaced rather
             # than treated as an empty answer, because "the model returned
             # nothing" and "the model said do nothing" are different facts.
-            reason = candidates[0].get("finishReason", "unknown")
+            reason = candidate.get("finishReason", "unknown")
             raise ProviderError(f"empty response (finishReason={reason})")
-        return _parse_model_json(str(parts[0].get("text", "")))
+
+        # Gemini 3.x models reason before answering, and the reasoning arrives as
+        # its own part in the SAME response. Reading `parts[0]` blindly picks up a
+        # thought like "Here is the JSON requested:" and fails to parse -- which is
+        # exactly how this went wrong the first time. Skip thought parts and join
+        # what remains.
+        answer = "".join(
+            str(part.get("text", ""))
+            for part in parts
+            if isinstance(part, dict) and not part.get("thought")
+        )
+        if not answer.strip():
+            reason = candidate.get("finishReason", "unknown")
+            raise ProviderError(
+                f"response contained only reasoning, no answer "
+                f"(finishReason={reason}; try a larger max_tokens)"
+            )
+        return _parse_model_json(answer)
 
 
 class GroqProvider:
@@ -76,11 +95,15 @@ class GroqProvider:
 
     JSON mode rather than a schema, so the returned object is validated by the
     caller's Pydantic model. Get a key at `console.groq.com`.
+
+    The default model is checked against Groq's live catalogue rather than
+    remembered: `llama-3.3-70b-versatile` was the obvious choice and has since
+    been retired, which produced a 404 on the first real call.
     """
 
     name = "groq"
 
-    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile") -> None:
+    def __init__(self, api_key: str, model: str = "openai/gpt-oss-120b") -> None:
         self._api_key = api_key
         self.model = model
 

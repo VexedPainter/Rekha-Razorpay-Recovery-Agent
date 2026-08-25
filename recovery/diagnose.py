@@ -49,9 +49,12 @@ from recovery.providers import LLMProvider, ProviderError
 PROMPT_DIR = Path(__file__).parent / "prompts"
 DEFAULT_PROMPT = "diagnose_v1"
 
-#: How many payments per request. 25 keeps the prompt well inside every free
-#: provider's context window while making a 200-payment cohort 8 calls.
-DEFAULT_BATCH_SIZE = 25
+#: How many payments per request. Chosen empirically against the real Gemini free
+#: tier: 15 completes in ~24s, 25 reliably drops the connection mid-generation
+#: (25 proposals of prose is a lot of output tokens). 10 leaves margin and still
+#: makes a 200-payment cohort 20 calls, which is comfortably inside a free tier --
+#: versus 200 calls at one per payment, which rate-limits.
+DEFAULT_BATCH_SIZE = 10
 
 
 @lru_cache(maxsize=8)

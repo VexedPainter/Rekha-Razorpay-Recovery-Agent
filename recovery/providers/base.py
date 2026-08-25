@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -117,26 +118,54 @@ def _post_json(
     *,
     headers: dict[str, str],
     payload: dict[str, Any],
-    timeout: float = 90.0,
+    timeout: float = 180.0,
+    attempts: int = 3,
 ) -> dict[str, Any]:
-    """One POST, one JSON response. Shared by every HTTP provider."""
+    """One POST, one JSON response, retried on transient failures.
+
+    Retries exist because a real recording run is ~20 sequential calls, and a
+    single dropped connection two thirds of the way through would waste all of
+    them. Observed in practice: `RemoteProtocolError: Server disconnected without
+    sending a response` on a large generation.
+
+    Retried: transport errors and 429/5xx. NOT retried: 4xx other than 429 -- a
+    bad key or a nonexistent model will fail identically on every attempt, and
+    hammering it just delays a clear error message.
+    """
     import httpx
 
-    try:
-        response = httpx.post(url, headers=headers, json=payload, timeout=timeout)
-    except httpx.HTTPError as exc:
-        raise ProviderError(f"request failed: {type(exc).__name__}: {exc}") from exc
+    last: str = "no attempt made"
+    for attempt in range(1, attempts + 1):
+        try:
+            response = httpx.post(url, headers=headers, json=payload, timeout=timeout)
+        except httpx.HTTPError as exc:
+            last = f"request failed: {type(exc).__name__}: {exc}"
+            if attempt < attempts:
+                time.sleep(2.0 * attempt)
+                continue
+            raise ProviderError(last) from exc
+        else:
+            if response.status_code == 200:
+                try:
+                    parsed = response.json()
+                except ValueError as exc:
+                    raise ProviderError(
+                        f"response was not JSON: {response.text[:200]}"
+                    ) from exc
+                if not isinstance(parsed, dict):
+                    raise ProviderError(
+                        f"expected a JSON object, got {type(parsed).__name__}"
+                    )
+                return parsed
 
-    if response.status_code != 200:
-        body = response.text[:400]
-        raise ProviderError(f"HTTP {response.status_code}: {body}")
-    try:
-        parsed = response.json()
-    except ValueError as exc:
-        raise ProviderError(f"response was not JSON: {response.text[:200]}") from exc
-    if not isinstance(parsed, dict):
-        raise ProviderError(f"expected a JSON object, got {type(parsed).__name__}")
-    return parsed
+            last = f"HTTP {response.status_code}: {response.text[:400]}"
+            retryable = response.status_code == 429 or response.status_code >= 500
+            if retryable and attempt < attempts:
+                time.sleep(2.0 * attempt)
+                continue
+            raise ProviderError(last)
+
+    raise ProviderError(last)  # pragma: no cover - loop always returns or raises
 
 
 def _parse_model_json(text: str) -> dict[str, Any]:

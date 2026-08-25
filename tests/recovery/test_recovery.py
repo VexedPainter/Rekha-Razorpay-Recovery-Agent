@@ -224,8 +224,19 @@ def test_batching_splits_the_cohort() -> None:
     assert len(report.proposals) == 60
 
 
-def test_the_default_batch_size_keeps_a_full_cohort_cheap() -> None:
-    assert 200 / DEFAULT_BATCH_SIZE <= 10
+def test_the_default_batch_size_keeps_a_full_cohort_within_a_free_tier() -> None:
+    """The batch size is a real constraint discovered against real free tiers, not
+    a round number.
+
+    Measured: Gemini free tier completes 15 payments per request in ~24s and
+    reliably drops the connection at 25 (25 proposals of prose is a lot of output
+    tokens). Groq's free tier caps at 8,000 tokens/minute, which batch-10 already
+    exceeds. So 10 is the reliable ceiling, giving 20 calls for a 200-payment
+    cohort -- against Gemini's free limit of 20 requests, which is exactly why one
+    call per payment (200 requests) was never viable.
+    """
+    assert DEFAULT_BATCH_SIZE <= 15, "larger batches drop the connection on a free tier"
+    assert 200 / DEFAULT_BATCH_SIZE <= 20, "a full cohort must fit a free request quota"
 
 
 # ------------------------------------------------------------- reproducible time
