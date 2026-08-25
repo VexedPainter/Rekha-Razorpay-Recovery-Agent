@@ -85,6 +85,27 @@ def register(app: typer.Typer) -> None:
 
         typer.echo(render(measure(db, session or None)))
 
+    @bench_app.command("backtest")
+    def backtest_cmd(
+        count: int = typer.Option(200, "--count", help="Cohort size."),
+        seed: int = typer.Option(20260826, "--seed", help="Outcome seed."),
+        fatigue: float = typer.Option(
+            0.65, "--fatigue", help="Effectiveness multiplier per additional contact."
+        ),
+        sweep: bool = typer.Option(False, "--sweep", help="Sweep the fatigue assumption."),
+    ) -> None:
+        """Measure what multi-step sequencing earns, against a single attempt."""
+        from bench.backtest import render, render_sweep, run
+
+        if sweep:
+            typer.echo(
+                render_sweep(
+                    [run(count=count, seed=seed, fatigue=f) for f in (0.3, 0.45, 0.65, 0.8, 1.0)]
+                )
+            )
+            return
+        typer.echo(render(run(count=count, seed=seed, fatigue=fatigue)))
+
     @bench_app.command("evaluate")
     def evaluate_cmd(
         count: int = typer.Option(200, "--count", help="Cohort size."),
