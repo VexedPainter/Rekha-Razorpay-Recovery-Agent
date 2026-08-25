@@ -1,0 +1,62 @@
+# Metadata for the Razorpay action pack. Descriptive only -- no loader reads
+# this to make an authorization decision; `contracts.yaml` is the authority.
+#
+# The full spec §11 packaging infrastructure (a signed registry index, trust
+# states with revocation, a pack-install CLI, an authoring SDK) is real, separate
+# infrastructure work with its own hosting and trust-root decisions. It is not
+# built here, so this pack honestly declares `trust_state: unverified`.
+
+name: razorpay
+version: 0.1.0
+description: >
+  Action contracts for AI revenue recovery against Razorpay: failed-payment
+  reads, payment-link creation and cancellation, link delivery, and refunds
+  (declared, and forbidden by the demo mandate).
+
+upstream:
+  name: razorpay-mcp-server
+  repository: https://github.com/razorpay/razorpay-mcp-server
+  license: MIT
+  # Two ways to run it. Neither is vendored or forked -- the server is a pinned
+  # dependency, launched as a wrapped stdio subprocess.
+  transports:
+    remote:
+      # Recommended: needs only Node/npx, no Docker.
+      command: npx
+      args:
+        - mcp-remote
+        - https://mcp.razorpay.com/mcp
+        - --header
+        - "Authorization: Basic ${RAZORPAY_MERCHANT_TOKEN}"
+    local:
+      command: docker
+      args: ["run", "--rm", "-i", "-e", "RAZORPAY_KEY_ID", "-e", "RAZORPAY_KEY_SECRET", "razorpay/mcp"]
+      image: razorpay/mcp
+      # Pinned deliberately rather than `latest`: a contract pack is only valid
+      # against a known tool surface, and the drift test in
+      # tests/razorpay/test_razorpay_pack.py is what would catch a silent change.
+      image_tag: latest
+
+sandbox:
+  # The offline stand-in the default test suite and the demo run against, so
+  # neither needs credentials, a network, or Docker.
+  command: python
+  args: ["examples/razorpay-sandbox/server.py"]
+
+# Honest scope. Verified against the sandbox's advertised tool surface and the
+# official server's documented tool list; NOT verified against a real settled
+# Razorpay payment, because a brand-new test-mode account produces no
+# settlements (see scripts/check_razorpay.py).
+trust_state: unverified
+
+notes:
+  - "Every mutating action declares an idempotency_key, so a retried recovery
+     cannot create a second link or a second refund."
+  - "Payment-link creation is `conditional`, not `reversible`. Cancellation is a
+     real undo that stops working once the link is paid."
+  - "create_refund is declared and functional on purpose. The merchant mandate is
+     what refuses it, which is what makes the prompt-injection scenario a
+     demonstration of authorization rather than of a missing integration."
+  - "Read tools are allowed outright by packs/razorpay/policy.yaml, recorded as a
+     config_override in the ledger. Gating cohort analysis behind 200 approvals
+     would make the system unusable."

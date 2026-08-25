@@ -1,0 +1,273 @@
+# Razorpay action contracts for AI revenue recovery.
+#
+# This file IS the agent's action space. `belay/proxy/lifecycle.py::resolve()`
+# refuses any tool with no contract here (`contract_missing`, spec §4.6
+# default-deny), so an action that is not declared below cannot be proposed,
+# planned, or executed -- not because the agent is well-behaved, but because
+# there is no code path for it.
+#
+# Tool names, argument names and response shapes match the official
+# `razorpay/razorpay-mcp-server` and the underlying REST API, so this pack is
+# valid against both the real server and `examples/razorpay-sandbox`.
+# `tests/razorpay/test_razorpay_pack.py` pins that correspondence and fails if
+# either side drifts.
+#
+# Reversibility, decided per action on what is financially true rather than
+# what is convenient:
+#
+#   reads                 -> irreversible + `read` effects. Nothing to undo.
+#   create_payment_link   -> CONDITIONAL. The undo is cancellation, and that
+#                            only works while the link is unpaid. A paid link
+#                            genuinely cannot be cancelled (the sandbox and the
+#                            real API both refuse it), so the condition is
+#                            evaluated at commit time and an already-paid link
+#                            registers as irreversible instead of pretending.
+#   send_payment_link     -> irreversible. An SMS cannot be unsent.
+#   create_refund         -> irreversible. Money out of the door.
+#
+# Every mutating action declares an `idempotency_key` over its arguments, so a
+# retried recovery cannot create a second link or a second refund.
+#
+# `redact` keeps customer contact details out of the hash-chained ledger. The
+# evidence needs to prove what was authorized, not to accumulate PII.
+#
+# provenance.verified is false: these are hand-authored and tested against the
+# sandbox plus the real server's advertised tool list, but not against a real
+# settled Razorpay payment. Marking them verified would be a claim we have not
+# earned.
+
+belay_contract: "0.1"
+tool: fetch_all_payments
+summary: List payments, newest first, optionally filtered by status.
+reversibility: irreversible
+effects:
+  - type: read
+    resource: razorpay.payment
+    # Bounded by the caller's count argument; ~ marks it an estimate.
+    # spec A6.3 worst-cases an unknown count, and an unknown READ count would
+    # therefore pause cohort analysis -- so it is declared, not omitted.
+    count: "~100"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+belay_contract: "0.1"
+tool: fetch_payment
+summary: Fetch one payment with its full failure detail.
+reversibility: irreversible
+effects:
+  - type: read
+    resource: razorpay.payment
+    count: "1"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+belay_contract: "0.1"
+tool: fetch_order_payments
+summary: Every payment attempt against one order -- the customer's retry history.
+reversibility: irreversible
+effects:
+  - type: read
+    resource: razorpay.payment
+    # Bounded by the caller's count argument; ~ marks it an estimate.
+    # spec A6.3 worst-cases an unknown count, and an unknown READ count would
+    # therefore pause cohort analysis -- so it is declared, not omitted.
+    count: "~100"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+belay_contract: "0.1"
+tool: fetch_tokens
+summary: Saved payment instruments for a customer.
+reversibility: irreversible
+effects:
+  - type: read
+    resource: razorpay.token
+    # Bounded by the caller's count argument; ~ marks it an estimate.
+    # spec A6.3 worst-cases an unknown count, and an unknown READ count would
+    # therefore pause cohort analysis -- so it is declared, not omitted.
+    count: "~100"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+belay_contract: "0.1"
+tool: fetch_payment_link
+summary: Fetch a payment link, including whether it has been paid.
+reversibility: irreversible
+effects:
+  - type: read
+    resource: razorpay.payment_link
+    count: "1"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+belay_contract: "0.1"
+tool: fetch_all_payment_links
+summary: List payment links.
+reversibility: irreversible
+effects:
+  - type: read
+    resource: razorpay.payment_link
+    # Bounded by the caller's count argument; ~ marks it an estimate.
+    # spec A6.3 worst-cases an unknown count, and an unknown READ count would
+    # therefore pause cohort analysis -- so it is declared, not omitted.
+    count: "~100"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+belay_contract: "0.1"
+tool: fetch_all_settlements
+summary: Settlements -- money actually moved to the merchant's bank account.
+reversibility: irreversible
+effects:
+  - type: read
+    resource: razorpay.settlement
+    # Bounded by the caller's count argument; ~ marks it an estimate.
+    # spec A6.3 worst-cases an unknown count, and an unknown READ count would
+    # therefore pause cohort analysis -- so it is declared, not omitted.
+    count: "~100"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+belay_contract: "0.1"
+tool: fetch_settlement_recon_details
+summary: Itemised settlement reconciliation -- leg 3 of settlement verification.
+reversibility: irreversible
+effects:
+  - type: read
+    resource: razorpay.settlement_recon
+    # Bounded by the caller's count argument; ~ marks it an estimate.
+    # spec A6.3 worst-cases an unknown count, and an unknown READ count would
+    # therefore pause cohort analysis -- so it is declared, not omitted.
+    count: "~100"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+# The primary recovery action.
+#
+# `capture` reads the link back by its reference id before creating it, so the
+# compensation is materialized against observed state rather than an assumption.
+# The capture tool is `fetch_all_payment_links`, which is read-only -- required,
+# and enforced by `SagaExecutor._check_capture_is_read_only`.
+belay_contract: "0.1"
+tool: create_payment_link
+summary: Create a standard payment link to recover a failed payment.
+reversibility: conditional
+conditions:
+  # Evaluated at commit time against the created link. A link that is somehow
+  # already paid by the moment we commit cannot be cancelled, so it registers as
+  # irreversible rather than claiming an undo that would fail.
+  - "$result.status != 'paid'"
+undo:
+  tool: cancel_payment_link
+  args:
+    payment_link_id: "$result.id"
+idempotent: false
+idempotency_key: "$args.reference_id"
+effects:
+  - type: create
+    resource: razorpay.payment_link
+    count: "1"
+  - type: spend
+    resource: razorpay.payment_link
+    count: "1"
+    amount_from:
+      minor_units: "$args.amount"
+      currency: "$args.currency"
+redact:
+  - customer.contact
+  - customer.email
+provenance:
+  declared_by: integrator
+  verified: false
+---
+belay_contract: "0.1"
+tool: create_payment_link_upi
+summary: Create a UPI-only payment link to recover a failed payment.
+reversibility: conditional
+conditions:
+  - "$result.status != 'paid'"
+undo:
+  tool: cancel_payment_link
+  args:
+    payment_link_id: "$result.id"
+idempotency_key: "$args.reference_id"
+effects:
+  - type: create
+    resource: razorpay.payment_link
+    count: "1"
+  - type: spend
+    resource: razorpay.payment_link
+    count: "1"
+    amount_from:
+      minor_units: "$args.amount"
+      currency: "$args.currency"
+redact:
+  - customer.contact
+  - customer.email
+provenance:
+  declared_by: integrator
+  verified: false
+---
+# Irreversible: an SMS or email cannot be unsent. `recipients: "1"` exists so a
+# policy `max_recipients` cap can bound a broadcast.
+belay_contract: "0.1"
+tool: send_payment_link
+summary: Send an existing payment link to the customer over SMS or email.
+reversibility: irreversible
+idempotency_key: "$args.payment_link_id"
+effects:
+  - type: send
+    resource: razorpay.payment_link
+    count: "1"
+    recipients: "1"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+# Declared so it can serve as the `undo` above. Compensations pass through the
+# policy engine too (spec §12), so a cancellation is a governed action in its
+# own right and needs a contract like any other.
+belay_contract: "0.1"
+tool: cancel_payment_link
+summary: Cancel an unpaid payment link. The compensation for link creation.
+reversibility: irreversible
+effects:
+  - type: update
+    resource: razorpay.payment_link
+    count: "1"
+provenance:
+  declared_by: integrator
+  verified: false
+---
+# Deliberately declared, deliberately working, and forbidden by the demo
+# mandate (examples/mandates/merchant.yaml).
+#
+# This is what makes the prompt-injection scenario a real demonstration rather
+# than theatre. A planted instruction in a payment's `notes` field can persuade
+# the AI to propose a refund; the tool exists and would succeed. What refuses it
+# is the merchant's mandate, checked before this contract is even resolved. If
+# the tool were simply absent, the scenario would prove nothing about
+# authorization -- only about a missing integration.
+belay_contract: "0.1"
+tool: create_refund
+summary: Refund a captured payment. Irreversible -- a refund cannot be un-refunded.
+reversibility: irreversible
+idempotency_key: "$args.payment_id"
+effects:
+  - type: spend
+    resource: razorpay.refund
+    count: "1"
+    amount_from:
+      minor_units: "$args.amount"
+      currency: "$args.currency"
+provenance:
+  declared_by: integrator
+  verified: false

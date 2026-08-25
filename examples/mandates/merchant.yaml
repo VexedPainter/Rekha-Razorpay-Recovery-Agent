@@ -1,0 +1,76 @@
+# The merchant's grant of authority to the recovery agent.
+#
+# This is the document a merchant would actually sign. It is checked before
+# contracts, planning, or policy -- because those answer "is this action safe?"
+# and this answers the prior question, "did the merchant authorize this agent to
+# do this kind of thing at all?"
+#
+# Its canonical hash is pinned into `session_started` and covered by the Ed25519
+# evidence signature, so which authority governed a session is a signed fact.
+# Editing this file mid-session cannot retroactively govern calls already made.
+
+merchant_id: acme_retail
+
+# Free text. Recorded in evidence for a human reviewing an approval; NEVER
+# machine-enforced. Pretending to check "only genuinely recoverable payments"
+# without real semantics would be worse than not checking it.
+purpose: >
+  Recover recoverable failed checkout payments by sending the customer a fresh
+  payment link. Do not move money out of the business. Do not contact customers
+  outside business hours.
+
+currency: INR
+
+# The agent's entire permitted vocabulary. Anything absent is refused.
+allowed_actions:
+  - fetch_all_payments
+  - fetch_payment
+  - fetch_order_payments
+  - fetch_tokens
+  - fetch_payment_link
+  - fetch_all_payment_links
+  - fetch_all_settlements
+  - fetch_settlement_recon_details
+  - create_payment_link
+  - create_payment_link_upi
+  - send_payment_link
+  - cancel_payment_link
+
+# Explicit denials. `create_refund` is listed rather than merely omitted so the
+# refusal names a deliberate decision instead of an oversight -- and so the
+# error message a prompt-injected agent receives says "forbidden", not
+# "unrecognised".
+forbidden_actions:
+  - create_refund
+
+allowed_methods:
+  - upi
+  - card
+  - netbanking
+
+# No single recovery attempt may exceed Rs 5,000.
+# The seeded cohort contains 37 failed payments above this, which must be
+# refused -- an agent that can chase every payment is not being constrained.
+max_per_action:
+  major: "5000.00"
+  currency: INR
+
+# No more than Rs 50,000 of recovery spend in any rolling 24 hours.
+#
+# This is the ceiling per-action limits cannot provide: 40 links of Rs 4,000
+# each pass a Rs 5,000 per-action check while breaching this by more than 3x.
+# Enforced by belay/policy/cumulative.py.
+max_cumulative:
+  major: "50000.00"
+  currency: INR
+window: 1d
+
+# Belt and braces on the aggregate: even small-value fan-out is bounded by count.
+max_actions_per_window: 25
+
+# Above Rs 2,500 a human decides. Below it the agent proceeds under the mandate
+# alone. Chosen so a normal demo run shows both paths -- fully autonomous
+# recovery AND human-in-the-loop -- rather than only one.
+approval_threshold:
+  major: "2500.00"
+  currency: INR

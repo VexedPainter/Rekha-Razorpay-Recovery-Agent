@@ -523,6 +523,29 @@ class Lifecycle:
         )
 
         policy_result = self.policy_stage.evaluate(plan)
+
+        # The mandate's approval threshold is the MERCHANT's escalation rule,
+        # independent of the operator's policy. Applied here rather than inside
+        # `PolicyEngine` because the engine is a pure function of `(plan, policy)`
+        # and the mandate is neither -- folding it in would mean the engine could
+        # no longer be reasoned about from its own two inputs.
+        #
+        # Most-restrictive-wins, matching how the engine combines its own
+        # dimensions: the mandate can escalate `allow` to `pause`, and can never
+        # relax a `pause` or a `deny` that policy already decided.
+        if self.mandate is not None and policy_result.verdict == "allow":
+            amount, _ = self._describe_action(tool, args)
+            if self.mandate.requires_approval(amount):
+                policy_result = policy_result.model_copy(
+                    update={
+                        "verdict": "pause",
+                        "requires_approval": True,
+                        "reasons": [
+                            *policy_result.reasons,
+                            f"mandate.approval_threshold ({self.mandate.approval_threshold})",
+                        ],
+                    }
+                )
         plan = plan.with_policy(
             policy_result.verdict, policy_result.reasons, policy_result.requires_approval
         )

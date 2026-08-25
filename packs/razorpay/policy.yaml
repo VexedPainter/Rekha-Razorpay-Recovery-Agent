@@ -1,0 +1,105 @@
+# Operator policy for AI revenue recovery (spec §6.1).
+#
+# The division of labour between this file and a merchant mandate:
+#
+#   MANDATE (examples/mandates/merchant.yaml) is the MERCHANT's grant of
+#   authority -- what the agent may do and up to what value. It is the
+#   merchant's number, hash-pinned into the session's signed evidence.
+#
+#   POLICY (this file) is the OPERATOR's blast-radius safety net -- defence in
+#   depth that holds even if a mandate is written too permissively.
+#
+# Both must pass. They are not redundant: they answer to different people.
+
+belay_policy: "0.1"
+
+defaults:
+  # spec §6.4. Every money-moving Razorpay action is irreversible or
+  # conditional, so this default is what routes them to human approval rather
+  # than letting them through. Left at `pause` deliberately -- relaxing it per
+  # tool is possible but is recorded as a `config_override` in the ledger.
+  irreversible: pause
+
+  # A `conditional` action whose undo condition does not hold at commit time is
+  # effectively irreversible. Same treatment.
+  conditional_unmet: pause
+
+  # spec §6.3: an effect we could not estimate is treated as worst case.
+  unknown_effects: pause
+
+  anomaly:
+    # Per-session rolling mean/stddev (Welford). Catches an action wildly outside
+    # this session's own pattern with no threshold configured by hand -- e.g. a
+    # single link 40x the size of every other recovery so far.
+    enabled: true
+    min_samples: 10
+    z_score_threshold: 3.0
+    verdict: pause
+
+  quota:
+    # Rolling cap on irreversible actions per identity. Off by default because
+    # the number is an operator judgement call, not a statistically derived one.
+    # The demo mandate carries the aggregate money ceiling instead.
+    enabled: false
+
+caps:
+  # Read actions are unbounded: diagnosis must be free to inspect the whole
+  # cohort. There is no cap entry for `read` at all, by design.
+
+  # One payment link at a time. A single call that would create several is not a
+  # recovery action, it is a bulk operation, and it pauses for a human.
+  - match:
+      effect: create
+      resource: razorpay.payment_link
+    max_count: 1
+    per: call
+    over: pause
+
+  # Per-action monetary ceiling. Intentionally set ABOVE the demo mandate's
+  # Rs 5,000, so that in the normal case the mandate is the binding constraint
+  # and this remains a backstop against a mandate written too loosely.
+  - match:
+      effect: spend
+      resource: razorpay.payment_link
+    max_amount:
+      major: "10000.00"
+      currency: INR
+    per: call
+    over: deny
+
+  # One recipient per send. Bounds a messaging blast.
+  - match:
+      effect: send
+      resource: razorpay.payment_link
+    max_recipients: 1
+    per: call
+    over: pause
+
+  # Any refund at all is denied at the policy layer, independently of the
+  # mandate. Two locks on the same door, because a refund is the highest-value
+  # mistake an agent in this system could make.
+  - match:
+      effect: spend
+      resource: razorpay.refund
+    max_amount:
+      minor_units: 0
+      currency: INR
+    per: call
+    over: deny
+
+tools:
+  # Reads are allowed outright, so cohort analysis does not queue 200 approvals.
+  # This is a relaxation of `defaults.irreversible` for read-only tools, and is
+  # recorded as a `config_override` on every affected event -- visible in the
+  # evidence, not silent.
+  - match: "fetch_*"
+    verdict: allow
+
+quiet_hours:
+  # No customer messaging between 21:00 and 09:00. A recovery SMS at 3am is a
+  # complaint, not a recovery. Pauses rather than denies: a human can still
+  # approve one if there is a reason.
+  - between: ["21:00", "09:00"]
+    scope:
+      effect: send
+    verdict: pause

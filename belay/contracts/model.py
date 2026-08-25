@@ -121,22 +121,74 @@ class SqlHint(_Strict):
         return self
 
 
+class AmountFrom(_Strict):
+    """A monetary amount derived from a call's arguments at plan time.
+
+    `Effect.amount` is a literal, which is right for a fixed-price action and
+    useless for a payment link whose value is whatever the agent proposed. This
+    carries the amount as two Belay expressions (spec §4.3) instead, evaluated
+    against `$args`/`$context` when the plan is built::
+
+        amount_from:
+          minor_units: "$args.amount"
+          currency: "$args.currency"
+
+    Why this rather than a new templating syntax: the grammar is the same closed,
+    non-executable one `undo.args`, `conditions`, and `idempotency_key` already
+    use, so there is one expression evaluator to secure rather than two.
+
+    Why it matters: the resulting `Money` lands on `EffectEstimate.amount`, which
+    is what `PolicyEngine`'s `max_amount` caps compare against and what
+    cumulative-spend accounting sums out of the ledger. Without it, a per-action
+    ceiling could be enforced from the arguments (via the mandate) but an
+    *aggregate* ceiling could not be enforced at all, because nothing durable
+    would record what each action was worth.
+    """
+
+    minor_units: str
+    currency: str
+
+    @model_validator(mode="after")
+    def _validate_expressions(self) -> AmountFrom:
+        parse_expression(self.minor_units)
+        parse_expression(self.currency)
+        return self
+
+
 class Effect(_Strict):
     """One declared effect of a tool call (spec §4.4).
 
     `amount` is `Money` (integer minor units) rather than a loose dict, so a
     `spend` effect's value is exact from declaration through policy evaluation
-    to settlement verification. A contract may write it either way::
+    to settlement verification. A contract may write a literal amount::
 
         amount: {major: "2400.00", currency: INR}
         amount: {minor_units: 240000, currency: INR}
+
+    or derive it from the call's own arguments with `amount_from`, which is what
+    a variable-value action like a payment link needs. Declaring both is
+    refused: two sources of truth for one amount is a contract bug.
     """
 
     type: TLiteral["create", "update", "delete", "send", "spend", "execute", "read"]
     resource: str
     count: str | None = None
     amount: Money | None = None
+    amount_from: AmountFrom | None = None
     recipients: str | None = None
+
+    @model_validator(mode="after")
+    def _one_amount_source(self) -> Effect:
+        if self.amount is not None and self.amount_from is not None:
+            raise BelayError(
+                "contract_invalid",
+                {
+                    "reason": "declare either `amount` or `amount_from`, never both -- "
+                    "two sources of truth for one monetary value",
+                    "resource": self.resource,
+                },
+            )
+        return self
 
 
 class Provenance(_Strict):

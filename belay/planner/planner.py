@@ -36,10 +36,12 @@ from typing import Any, Literal
 
 from belay.canonical import canonical_bytes, sha256_hex
 from belay.clock import Clock, SystemClock
+from belay.contracts.expressions import Scope
 from belay.contracts.expressions import evaluate as evaluate_expression
 from belay.contracts.expressions import parse as parse_expression
-from belay.contracts.model import Contract
+from belay.contracts.model import Contract, Effect
 from belay.errors import BelayError
+from belay.finance.money import Money
 from belay.planner.model import EffectEstimate, Plan, PlanningSession, SqlRunner
 
 DEFAULT_PLAN_TTL_SECONDS = 600  # 10 minutes (spec §5.4 default)
@@ -58,10 +60,55 @@ def _plan_id(session_id: str, tool: str, args: dict[str, Any]) -> str:
     return f"p_{digest[:16]}"
 
 
-def _contract_effects(contract: Contract) -> tuple[list[EffectEstimate], list[dict[str, Any]]]:
+def _materialize_amount(effect: Effect, args: dict[str, Any]) -> Money | None:
+    """Evaluate an effect's `amount_from` expressions into exact `Money`.
+
+    Returns the literal `amount` when that is what the contract declared, and
+    `None` when neither is present or the expressions do not resolve against
+    these arguments.
+
+    A resolvable-but-invalid amount (a float, a non-numeric string, a bad
+    currency) raises `money_invalid` rather than degrading to `None`: silently
+    dropping the amount of a `spend` effect would make it invisible to every
+    cap that exists to bound it, which is the one failure mode worth being loud
+    about.
+    """
+    if effect.amount is not None:
+        return effect.amount
+    if effect.amount_from is None:
+        return None
+
+    scope: Scope = {"args": args, "result": None, "context": {}, "state": {}}
+    minor = evaluate_expression(parse_expression(effect.amount_from.minor_units), scope)
+    currency = evaluate_expression(parse_expression(effect.amount_from.currency), scope)
+    if minor is None or currency is None:
+        # The arguments genuinely do not carry an amount (a read, or an optional
+        # field left out). Not an error; the effect simply has no monetary value.
+        return None
+    if isinstance(minor, bool) or not isinstance(minor, int):
+        raise BelayError(
+            "money_invalid",
+            {
+                "reason": "amount_from.minor_units must resolve to an integer number of "
+                "minor units",
+                "resolved": repr(minor),
+            },
+        )
+    if not isinstance(currency, str):
+        raise BelayError(
+            "money_invalid",
+            {"reason": "amount_from.currency must resolve to a string", "resolved": repr(currency)},
+        )
+    return Money(minor_units=minor, currency=currency)
+
+
+def _contract_effects(
+    contract: Contract, args: dict[str, Any]
+) -> tuple[list[EffectEstimate], list[dict[str, Any]]]:
     effects: list[EffectEstimate] = []
     unknown: list[dict[str, Any]] = []
     for effect in contract.effects:
+        amount = _materialize_amount(effect, args)
         if effect.count is None:
             unknown.append({"type": effect.type, "resource": effect.resource})
             continue
@@ -72,7 +119,7 @@ def _contract_effects(contract: Contract) -> tuple[list[EffectEstimate], list[di
                 count=effect.count,
                 estimate=True,
                 basis="contract",
-                amount=effect.amount,
+                amount=amount,
                 recipients=effect.recipients,
             )
         )
@@ -139,7 +186,7 @@ async def _sql_effects(
             count=str(count),
             estimate=False,
             basis="sql_simulator",
-            amount=effect.amount,
+            amount=_materialize_amount(effect, args),
             recipients=effect.recipients,
         )
         for effect in contract.effects
@@ -164,7 +211,7 @@ class Planner:
     async def plan(self, tool: str, args: dict[str, Any], session: PlanningSession) -> Plan:
         """Predict `tool(args)`'s effects without executing it (spec §5.1)."""
         if session.contract is not None:
-            effects, unknown = _contract_effects(session.contract)
+            effects, unknown = _contract_effects(session.contract, args)
             reversibility = session.contract.reversibility
             basis = "contract"
         else:
