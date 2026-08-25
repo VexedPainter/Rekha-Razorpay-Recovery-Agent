@@ -113,32 +113,53 @@ def test_contains_option_requires_a_standalone_argument() -> None:
     assert _contains_option("--cov-branch --cov=belay", "--cov-branch")
 
 
-def test_the_env_template_exists_and_documents_every_provider() -> None:
+def _template_assignments(text: str) -> dict[str, str]:
+    """Uncommented `KEY=value` assignments in an env template.
+
+    Comments are excluded deliberately. An earlier version of the test below
+    asserted only that a key name appeared *somewhere* in the file, which passed
+    happily on `# GEMINI_API_KEY=AIza...` -- a line that gives a reader no slot to
+    fill in. "The name is mentioned" and "there is somewhere to put the value" are
+    different claims, and only the second one is useful.
+    """
+    found: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        found[key.strip()] = value.strip().strip("'\"")
+    return found
+
+
+def test_the_env_template_has_a_real_slot_for_every_provider() -> None:
     """`.env.example` is the only instruction anyone gets for configuring keys.
 
-    Pinned because it was already silently deleted once by a `git add -A` that
-    swept up a stray removal, and nothing noticed until someone went looking for
-    where to put a key. A tracked template that can vanish without failing a build
-    is documentation that will eventually be wrong.
+    Two failures are pinned here, both of which already happened:
+
+    1. The file was silently deleted by a `git add -A` that swept up a stray
+       removal, and nothing noticed until someone went looking for where to put a
+       key.
+    2. Every provider key was present but COMMENTED OUT, so copying the template
+       produced a file with no slot for a Gemini key at all.
+
+    A tracked template that can vanish, or that documents a variable without
+    offering anywhere to set it, is documentation that will be wrong when it
+    matters.
     """
     template = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
+    assignments = _template_assignments(template)
 
-    for key in (
-        "GEMINI_API_KEY",
-        "GROQ_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "RAZORPAY_KEY_ID",
-        "RAZORPAY_KEY_SECRET",
-        "RAZORPAY_WEBHOOK_SECRET",
-    ):
-        assert key in template, f"{key} is not documented in .env.example"
-
-    # Every provider the code knows about must be documented, so adding one
-    # cannot leave users guessing at its variable name.
     from recovery.providers.providers import PROVIDER_ORDER
 
     for _, key_name, _ in PROVIDER_ORDER:
-        assert key_name in template, f"{key_name} is supported but undocumented"
+        assert key_name in assignments, (
+            f"{key_name} is a supported provider but has no uncommented slot in "
+            f".env.example -- a reader copying the template gets nowhere to put it"
+        )
+
+    for key in ("RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"):
+        assert key in assignments, f"{key} has no slot in .env.example"
 
     # And where to get the free ones.
     assert "aistudio.google.com" in template
@@ -150,14 +171,9 @@ def test_the_env_template_contains_no_real_looking_credentials() -> None:
     from recovery.providers.base import is_placeholder
 
     template = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
-    for raw in template.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    for key, value in _template_assignments(template).items():
+        if not value:
             continue
-        key, _, value = line.partition("=")
-        cleaned = value.strip().strip("'\"")
-        if not cleaned:
-            continue
-        assert is_placeholder(cleaned) or cleaned == "pick-any-string-for-now", (
-            f"{key.strip()} in .env.example looks like a real value: {cleaned[:20]}"
+        assert is_placeholder(value) or value == "pick-any-string-for-now", (
+            f"{key} in .env.example looks like a real value: {value[:20]}"
         )
