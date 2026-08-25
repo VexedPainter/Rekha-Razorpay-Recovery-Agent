@@ -14,7 +14,6 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from belay.ledger.model import Event
 from belay.ledger.store import LedgerStore
 
 _WINDOW_RE = re.compile(r"^(\d+)([smhd])$")
@@ -32,7 +31,14 @@ def parse_window(text: str) -> timedelta:
 
 @dataclass
 class QuotaTracker:
-    """Counts one identity's approved-and-executed irreversible actions within a rolling window."""
+    """Counts one identity's approved-and-executed irreversible actions within a rolling window.
+
+    Delegates the fold to `belay/policy/cumulative.py`. Before this, the two
+    modules each walked the ledger with their own copy of the same logic --
+    including the `plan_id`-not-`step_seq` subtlety that stops a human-approved
+    action being counted twice. Two copies of that reasoning is one copy too
+    many: if they ever disagreed, one of two limits would be silently wrong.
+    """
 
     ledger: LedgerStore
 
@@ -44,79 +50,17 @@ class QuotaTracker:
         Boundary rule: an event exactly `window` old still counts (`now - at
         <= window`); anything older does not.
         """
-        cutoff = now - window
-        events_by_session: dict[str, list[Event]] = {}
-        for event in self.ledger.read_all():
-            events_by_session.setdefault(event.session_id, []).append(event)
+        from belay.policy.cumulative import (
+            FOLD_EVENT_TYPES,
+            fold_authorized_actions,
+            in_window,
+        )
 
-        total = 0
-        for session_events in events_by_session.values():
-            session_identity = next(
-                (e.initiated_by for e in session_events if e.type == "session_started"), None
-            )
-            if session_identity != identity:
-                continue
-            total += _count_session(session_events, cutoff=cutoff, now=now)
-        return total
+        result = fold_authorized_actions(self.ledger.read_by_types(FOLD_EVENT_TYPES))
+        return sum(
+            1
+            for action in in_window(result.actions, now=now, window=window)
+            if action.identity == identity and action.reversibility == "irreversible"
+        )
 
 
-def _count_session(events: list[Event], *, cutoff: datetime, now: datetime) -> int:
-    reversibility: dict[int, str] = {}
-    verdict: dict[int, str] = {}
-    at: dict[int, datetime] = {}
-    plan_id_of: dict[int, str] = {}
-    committed: set[int] = set()
-    # Keyed by `plan_id`, not `step_seq`: a `pause`d call's retry re-plans
-    # under a *new* `step_seq` once approved (spec §7 -- `ApprovalStage` is
-    # itself bound to `plan_id` for the same reason, see its docstring), so
-    # matching the approval back to the step that actually executed only
-    # works through the `plan_id` both share.
-    approved_plan_ids: set[str] = set()
-
-    for event in events:
-        step = event.step_seq
-        if event.type == "approval_resolved":
-            if event.payload.get("state") == "approved":
-                plan_id = event.payload.get("plan_id")
-                if isinstance(plan_id, str):
-                    approved_plan_ids.add(plan_id)
-            continue
-        if step is None:
-            continue
-        if event.type == "plan_created":
-            value = event.payload.get("reversibility")
-            if isinstance(value, str):
-                reversibility[step] = value
-            plan_id = event.payload.get("plan_id")
-            if isinstance(plan_id, str):
-                plan_id_of[step] = plan_id
-        elif event.type == "policy_evaluated":
-            v = event.payload.get("verdict")
-            if isinstance(v, str):
-                verdict[step] = v
-            at[step] = datetime.fromisoformat(event.at)
-        elif event.type == "step_committed":
-            committed.add(step)
-
-    count = 0
-    for step, reversible in reversibility.items():
-        if reversible != "irreversible":
-            continue
-        step_verdict = verdict.get(step)
-        if step_verdict == "allow":
-            executed = step in committed
-        elif step_verdict == "pause":
-            plan_id = plan_id_of.get(step)
-            executed = (
-                plan_id is not None and plan_id in approved_plan_ids and step in committed
-            )
-        else:  # "deny" or unknown -- never counts
-            executed = False
-        if not executed:
-            continue
-        when = at.get(step)
-        if when is None:
-            continue
-        if cutoff <= when <= now:
-            count += 1
-    return count

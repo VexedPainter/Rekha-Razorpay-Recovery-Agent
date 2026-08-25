@@ -8,7 +8,7 @@ from __future__ import annotations
 import threading
 import uuid
 from collections import defaultdict
-from datetime import UTC, datetime
+from collections.abc import Iterable
 from types import TracebackType
 from typing import Any
 
@@ -17,6 +17,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session as DBSession
 
 from belay.canonical import canonical_bytes, sha256_hex
+from belay.clock import Clock, SystemClock
 from belay.db.lifecycle import EngineLease
 from belay.db.models import Base, EventRow
 from belay.ledger.model import GENESIS_HASH, Event
@@ -51,12 +52,25 @@ class LedgerStore:
     write path exposed. Past events are immutable (spec §9.2/§9.3).
     """
 
-    def __init__(self, db_url: str = "sqlite:///:memory:", *, engine: Engine | None = None) -> None:
+    def __init__(
+        self,
+        db_url: str = "sqlite:///:memory:",
+        *,
+        engine: Engine | None = None,
+        clock: Clock | None = None,
+    ) -> None:
         self._engine_lease = (
             EngineLease.create(db_url) if engine is None else EngineLease.borrow(engine)
         )
         self._engine = self._engine_lease.engine
         Base.metadata.create_all(self._engine)
+        #: Injected for the same reason every other component takes one: a
+        #: rolling-window limit (`belay/policy/quota.py`,
+        #: `belay/policy/cumulative.py`) compares an event's `at` against
+        #: `Clock.now()`. If those two come from different sources the window is
+        #: unsound -- and untestable without rewriting `at` after the fact, which
+        #: would break the hash chain.
+        self._clock: Clock = clock or SystemClock()
         # ponytail: process-local lock per session, not a DB-level lock —
         # fine for single-process `belay run`; multi-process writers to the
         # same SQLite file would need a real advisory/row lock instead.
@@ -118,7 +132,7 @@ class LedgerStore:
                 session_id=session_id,
                 step_seq=step_seq,
                 type=type,
-                at=datetime.now(UTC).isoformat(),
+                at=self._clock.now().isoformat(),
                 payload=payload,
                 set_hash=set_hash,
                 prev_hash=prev_hash,
@@ -157,4 +171,26 @@ class LedgerStore:
         """Read every event in the store, across all sessions, in append order."""
         with DBSession(self._engine) as db:
             rows = db.scalars(select(EventRow).order_by(EventRow.id)).all()
+            return [_row_to_event(row) for row in rows]
+
+    def read_by_types(self, types: Iterable[str]) -> list[Event]:
+        """Every event of the given `types`, across all sessions, in append order.
+
+        Added for the cumulative/velocity fold (`belay/policy/cumulative.py`),
+        which needs five of the twenty event types and previously would have had
+        to pull the whole table via `read_all()`. That matters because
+        `state_captured` and `result_recorded` carry entire upstream responses,
+        so they dominate the table's size while being irrelevant to a limit
+        decision -- and a limit is evaluated on the path of every money-moving
+        action, not once at startup.
+
+        Filtered in SQL against an index on `type`, not in Python.
+        """
+        wanted = list(types)
+        if not wanted:
+            return []
+        with DBSession(self._engine) as db:
+            rows = db.scalars(
+                select(EventRow).where(EventRow.type.in_(wanted)).order_by(EventRow.id)
+            ).all()
             return [_row_to_event(row) for row in rows]

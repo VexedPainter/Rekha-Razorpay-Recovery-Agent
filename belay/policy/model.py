@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Literal as TLiteral
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from belay.errors import BelayError
 from belay.finance.money import Money
 
 Verdict = TLiteral["allow", "pause", "deny"]
@@ -109,6 +110,53 @@ class Cap(_Strict):
     max_recipients: int | None = None
     per: TLiteral["call", "session"] = "call"
     over: Verdict
+
+    @model_validator(mode="after")
+    def _session_scope_supports_only_amounts(self) -> Cap:
+        """`per: session` aggregates money only. Anything else is refused loudly.
+
+        `max_amount` has an unambiguous aggregate meaning: money spent in this
+        session, summed. `max_count` and `max_recipients` do not -- a count of
+        what, effects or actions? -- and inventing a semantic would leave an
+        operator believing they had configured a budget whose behaviour nobody
+        had actually decided.
+
+        Failing at load time is the point. The alternative, silently treating it
+        as `per: call`, is exactly the bug this validator exists because of:
+        `per` was declared and unread for the whole life of the project, so a
+        `per: session` cap read as protection in a policy document while
+        providing none.
+        """
+        if self.per != "session":
+            return self
+        unsupported = [
+            name
+            for name, value in (
+                ("max_count", self.max_count),
+                ("max_recipients", self.max_recipients),
+            )
+            if value is not None
+        ]
+        if unsupported:
+            raise BelayError(
+                "contract_invalid",
+                {
+                    "reason": f"`per: session` aggregates `max_amount` only; {unsupported} "
+                    f"has no defined aggregate meaning. Use `per: call` for those, or "
+                    f"split them into a separate cap.",
+                    "cap": self.match.model_dump(),
+                },
+            )
+        if self.max_amount is None:
+            raise BelayError(
+                "contract_invalid",
+                {
+                    "reason": "`per: session` requires `max_amount` -- there is nothing "
+                    "else for it to aggregate",
+                    "cap": self.match.model_dump(),
+                },
+            )
+        return self
 
 
 class ToolRule(_Strict):

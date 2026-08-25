@@ -22,6 +22,7 @@ from belay.errors import BelayError
 from belay.executor.saga import SagaExecutor
 from belay.finance.mandate import MerchantMandate, check_mandate
 from belay.finance.money import Money
+from belay.finance.money import total as sum_money
 from belay.ledger.model import STEP_FAILED
 from belay.ledger.redact import redact
 from belay.ledger.store import LedgerStore
@@ -351,6 +352,122 @@ class Lifecycle:
                 },
             ) from exc
 
+    def _check_aggregate_mandate_limits(
+        self, tool: str, args: dict[str, Any], plan: Plan, step_seq: int
+    ) -> None:
+        """Enforce the mandate's rolling cumulative-spend and velocity ceilings.
+
+        This is the limit that per-action ceilings cannot provide. Forty payment
+        links of Rs 4,000 each pass a Rs 5,000 per-action check while breaching a
+        Rs 50,000 daily budget by more than three times, so an agent trusted to
+        move money autonomously has to be bounded in aggregate or it is not
+        bounded at all.
+
+        Scoped to the merchant across every session, deliberately: a daily
+        ceiling that resets by starting a new session is not a daily ceiling.
+
+        Evaluated after planning rather than alongside the per-action mandate
+        check, because the amount that counts toward the budget is the one the
+        plan resolved (`EffectEstimate.amount`, from the contract's
+        `amount_from`) -- the same value the ledger will record and that a later
+        audit will re-sum. Using the raw argument here and the planned amount
+        there would let the two disagree.
+        """
+        assert self.mandate is not None
+        mandate = self.mandate
+        if mandate.max_cumulative is None and mandate.max_actions_per_window is None:
+            return
+
+        from belay.policy.cumulative import CumulativeTracker
+
+        currency = mandate.currency
+        window = mandate.window_delta
+        now = self.clock.now()
+        tracker = CumulativeTracker(self.ledger)
+
+        if mandate.max_cumulative is not None:
+            this_action = sum_money(
+                [
+                    e.amount
+                    for e in plan.effects
+                    if e.type == "spend" and e.amount is not None and e.amount.currency == currency
+                ],
+                currency=currency,
+            )
+            if this_action:
+                already = tracker.spent_by_merchant(
+                    mandate.merchant_id, currency=currency, now=now, window=window
+                )
+                projected = already + this_action
+                if projected > mandate.max_cumulative:
+                    self._record_limit_refusal(
+                        tool,
+                        args,
+                        step_seq,
+                        code="cumulative_limit_exceeded",
+                        detail={
+                            "reason": f"this action would take {mandate.window} spend to "
+                            f"{projected}, over the mandate's ceiling of "
+                            f"{mandate.max_cumulative}",
+                            "field": "max_cumulative",
+                            "already_spent": str(already),
+                            "this_action": str(this_action),
+                            "limit": str(mandate.max_cumulative),
+                            "window": mandate.window,
+                        },
+                    )
+
+        if mandate.max_actions_per_window is not None:
+            count = tracker.actions_by_merchant(
+                mandate.merchant_id, now=now, window=window
+            )
+            if count >= mandate.max_actions_per_window:
+                self._record_limit_refusal(
+                    tool,
+                    args,
+                    step_seq,
+                    code="velocity_limit_exceeded",
+                    detail={
+                        "reason": f"{count} action(s) already taken in the trailing "
+                        f"{mandate.window}, at the mandate's limit of "
+                        f"{mandate.max_actions_per_window}",
+                        "field": "max_actions_per_window",
+                        "count": count,
+                        "limit": mandate.max_actions_per_window,
+                        "window": mandate.window,
+                    },
+                )
+
+    def _record_limit_refusal(
+        self, tool: str, args: dict[str, Any], step_seq: int, *, code: str, detail: dict[str, Any]
+    ) -> None:
+        """Append the refusal to the ledger, then raise. Never one without the other.
+
+        A blocked action that leaves no evidence is indistinguishable from an
+        action that was never attempted, which would make the aggregate limits
+        unauditable -- and unauditable is the one thing this control plane must
+        not be.
+        """
+        assert self.mandate is not None
+        self.ledger.append(
+            self.session_id,
+            STEP_FAILED,
+            redact(
+                {
+                    "tool": tool,
+                    "args": args,
+                    "error": {"code": code, "detail": detail},
+                    "mandate_violation": detail["reason"],
+                    "mandate_field": detail["field"],
+                    "mandate_hash": self.mandate.hash(),
+                },
+                self.contract_set.resolve(tool),
+            ),
+            step_seq=step_seq,
+            set_hash=self.contract_set.set_hash,
+        )
+        raise BelayError(code, {**detail, "mandate_hash": self.mandate.hash()})
+
     def start_session(self, initiated_by: str, on_behalf_of: str | None = None) -> None:
         """Emit `session_started` / `contract_set_pinned`, fixing this session's `set_hash`.
 
@@ -523,6 +640,12 @@ class Lifecycle:
         )
 
         policy_result = self.policy_stage.evaluate(plan)
+
+        # Aggregate mandate ceilings. After planning, because the amount that
+        # counts toward the budget is the one the plan resolved -- the same value
+        # the ledger records and a later audit re-sums.
+        if self.mandate is not None:
+            self._check_aggregate_mandate_limits(tool, args, plan, step_seq)
 
         # The mandate's approval threshold is the MERCHANT's escalation rule,
         # independent of the operator's policy. Applied here rather than inside

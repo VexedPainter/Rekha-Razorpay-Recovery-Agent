@@ -48,6 +48,11 @@ def _in_window(now: datetime, between: tuple[str, str]) -> bool:
 
 
 def _evaluate_cap(cap: Cap, plan: Plan) -> Verdict | None:
+    """Evaluate one `per: call` cap against the single plan in hand.
+
+    `per: session` caps are aggregate and are handled by
+    `_evaluate_session_caps` below, which needs the ledger.
+    """
     matching = [e for e in plan.effects if _matches(cap.match, e)]
     if not matching:
         return None
@@ -82,6 +87,54 @@ def _evaluate_cap(cap: Cap, plan: Plan) -> Verdict | None:
             return cap.over
 
     return None
+
+
+def _evaluate_session_caps(
+    plan: Plan, policy: PolicyDoc, ledger: LedgerStore
+) -> list[tuple[Verdict, str, int]]:
+    """Every `per: session` cap that fired, as `(verdict, reason, cap_index)`.
+
+    Closes a gap that existed from the beginning: `Cap.per` was declared in the
+    model and never read here, so `per: session` silently behaved as `per: call`.
+    A cap that a caller believes is an aggregate budget, but which actually only
+    ever sees one action, is worse than no cap -- it reads as protection in the
+    policy document while providing none.
+
+    The comparison is `already_spent + this_action > cap`, so the action that
+    *crosses* the ceiling is the one refused. Everything under it stays allowed:
+    a budget is spent up to its limit, not voided on approach.
+    """
+    from belay.policy.cumulative import CumulativeTracker
+
+    fired: list[tuple[Verdict, str, int]] = []
+    tracker: CumulativeTracker | None = None
+
+    for index, cap in enumerate(policy.caps):
+        if cap.per != "session" or cap.max_amount is None:
+            continue
+        matching = [e for e in plan.effects if _matches(cap.match, e)]
+        if not matching:
+            continue
+
+        currency = cap.max_amount.currency
+        this_action = sum_money(
+            [e.amount for e in matching if e.amount is not None and e.amount.currency == currency],
+            currency=currency,
+        )
+        if tracker is None:
+            tracker = CumulativeTracker(ledger)
+        already = tracker.spent_in_session(plan.session_id, currency=currency)
+        if already + this_action > cap.max_amount:
+            fired.append(
+                (
+                    cap.over,
+                    f"caps[{index}] (per session: {already} spent + {this_action} "
+                    f"this action > {cap.max_amount})",
+                    index,
+                )
+            )
+
+    return fired
 
 
 def _scope_matches(scope: CapMatch, effects: list[EffectEstimate]) -> bool:
@@ -217,9 +270,13 @@ class PolicyEngine:
                 fired.append((qh.verdict, f"quiet_hours[{i}]"))
                 break
 
-        # Caps -- each is an independent constraint.
+        # Caps -- each is an independent constraint. `per: call` caps evaluate
+        # against this plan alone; `per: session` caps are aggregate and need the
+        # ledger, so they are handled separately below.
         covered: set[tuple[str, str]] = set()
         for i, cap in enumerate(policy.caps):
+            if cap.per == "session":
+                continue
             result = _evaluate_cap(cap, plan)
             if result is not None:
                 fired.append((result, f"caps[{i}]"))
@@ -230,6 +287,14 @@ class PolicyEngine:
         # Anomaly baseline (plan-v2 E10) -- only when a ledger is wired in
         # (spec: reads the session's own history, never global state).
         if self.ledger is not None:
+            for verdict, reason, cap_index in _evaluate_session_caps(plan, policy, self.ledger):
+                fired.append((verdict, reason))
+                covered |= {
+                    (e.type, e.resource)
+                    for e in plan.effects
+                    if _matches(policy.caps[cap_index].match, e)
+                }
+
             anomaly = _evaluate_anomaly(plan, policy, self.ledger, covered)
             if anomaly is not None:
                 fired.append((anomaly[0], anomaly[1]))
