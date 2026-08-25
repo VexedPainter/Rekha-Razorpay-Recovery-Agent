@@ -94,6 +94,14 @@ module = "conformance.tests.*"
 strict = false
 ignore_errors = true
 
+[[tool.mypy.overrides]]
+# `cohort` lives in examples/razorpay-sandbox/ and is imported by path at runtime
+# (bench/evaluate.py adds that directory to sys.path). It is a standalone sandbox
+# module rather than an installed package, so mypy cannot resolve it statically. The
+# import is exercised by tests/bench/, which is the check that actually matters.
+module = "cohort"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 addopts = "--cov=belay --cov=recovery --cov-branch --cov-report=term-missing -m \"not slow and not live_conformance and not live_llm and not live_razorpay\""
 testpaths = ["tests"]

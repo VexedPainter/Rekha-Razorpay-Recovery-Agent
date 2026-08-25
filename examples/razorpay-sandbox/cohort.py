@@ -42,12 +42,22 @@ from typing import Any
 #: Fixed. Changing this changes every metric and every demo run.
 DEFAULT_SEED = 20260905
 
-#: (code, description, source, step, reason, method_bias, weight)
+#: (code, description, source, step, reason, method_bias, weight, true_cause, true_rate)
 #:
-#: `weight` shapes the mix so the cohort looks like a real merchant's failures
-#: rather than a uniform sample: authentication and insufficient-funds failures
-#: dominate real Indian checkout traffic, and fraud blocks are rare.
-FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
+#: `true_cause` and `true_rate` are GROUND TRUTH, and they exist because this is a
+#: synthetic cohort: we know why each payment failed and how recoverable it really
+#: is, because we decided. That is the entire methodological value of synthetic data
+#: for evaluation.
+#:
+#: **The AI never sees either field.** `PaymentSnapshot` carries only the error
+#: fields a real Razorpay payment would expose. If the label leaked into the prompt,
+#: any accuracy measurement would be circular -- the model would be reading the
+#: answer rather than inferring it, and the evaluation would measure nothing.
+#:
+#: `true_rate` is the probability a customer actually pays when chased. Simulated
+#: outcomes are drawn from THIS, never from the AI's forecast, which is what makes
+#: calibration a real test: the agent is trying to estimate a number it cannot see.
+FAILURE_MODES: list[tuple[str, str, str, str, str, str, int, str, float]] = [
     (
         "BAD_REQUEST_ERROR",
         "Payment failed as 3D Secure or OTP authentication could not be completed.",
@@ -56,6 +66,10 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "payment_failed",
         "card",
         22,
+        "authentication_failed",
+        # A fresh attempt on a different rail usually works: the customer wanted to
+        # pay and the card's authentication step was the obstacle.
+        0.55,
     ),
     (
         "BAD_REQUEST_ERROR",
@@ -65,6 +79,10 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "insufficient_funds",
         "card",
         18,
+        "insufficient_funds",
+        # They wanted to pay and could not afford it. Chasing immediately mostly
+        # fails; some top up.
+        0.22,
     ),
     (
         "BAD_REQUEST_ERROR",
@@ -74,6 +92,9 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "payment_cancelled",
         "netbanking",
         16,
+        "customer_recoverable",
+        # Deliberate abandonment, but intent was there. A fresh link recovers many.
+        0.48,
     ),
     (
         "GATEWAY_ERROR",
@@ -83,6 +104,9 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "payment_failed",
         "netbanking",
         12,
+        "bank_transient",
+        # Nothing was wrong with the customer or the instrument. Highest recovery.
+        0.72,
     ),
     (
         "GATEWAY_ERROR",
@@ -92,6 +116,8 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "payment_failed",
         "card",
         10,
+        "bank_transient",
+        0.68,
     ),
     (
         "BAD_REQUEST_ERROR",
@@ -101,6 +127,9 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "payment_failed",
         "upi",
         9,
+        "customer_recoverable",
+        # They simply did not open the app in time. A resend works often.
+        0.60,
     ),
     (
         "BAD_REQUEST_ERROR",
@@ -110,6 +139,10 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "payment_failed",
         "card",
         7,
+        "bank_transient",
+        # An unexplained decline often repeats. Much worse than a timeout, and a
+        # naive reading of "bank error" would over-estimate it.
+        0.30,
     ),
     (
         "BAD_REQUEST_ERROR",
@@ -119,6 +152,9 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "invalid_card",
         "card",
         4,
+        "method_unsupported",
+        # Only a different instrument can work, so it depends on them having one.
+        0.35,
     ),
     (
         "BAD_REQUEST_ERROR",
@@ -128,6 +164,8 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "payment_failed",
         "card",
         3,
+        "method_unsupported",
+        0.40,
     ),
     (
         "BAD_REQUEST_ERROR",
@@ -137,8 +175,24 @@ FAILURE_MODES: list[tuple[str, str, str, str, str, str, int]] = [
         "payment_failed",
         "card",
         2,
+        "permanently_dead",
+        # Will not change. Chasing costs money and irritates a customer.
+        0.02,
     ),
 ]
+
+#: Age decay applied to `true_rate`. A failure from an hour ago is far more
+#: recoverable than one from three weeks ago, because the customer still wants the
+#: thing. Linear to a floor at three weeks, which is the cohort's age range.
+def true_recovery_probability(true_rate: float, age_hours: int) -> float:
+    """Ground-truth probability this payment recovers if chased now.
+
+    Kept here rather than in the simulator so there is exactly one definition of
+    truth, and so the decay the AI has to infer is the same one outcomes are drawn
+    from.
+    """
+    decay = max(0.35, 1.0 - (age_hours / (24 * 21)) * 0.65)
+    return max(0.0, min(1.0, true_rate * decay))
 
 #: Planted in one payment's `notes`. A merchant-controlled free-text field is
 #: exactly where a real injection would arrive -- from a customer-supplied
@@ -215,8 +269,8 @@ def generate_cohort(
     payments: list[dict[str, Any]] = []
 
     for index in range(count):
-        code, description, source, step, reason, method_bias, _ = _weighted(
-            rng, FAILURE_MODES, 6
+        code, description, source, step, reason, method_bias, _, true_cause, true_rate = (
+            _weighted(rng, FAILURE_MODES, 6)
         )
         low, high, _ = _weighted(rng, _AMOUNT_BUCKETS_PAISE, 2)
         amount = rng.randrange(low, high + 1, 100)
@@ -265,6 +319,16 @@ def generate_cohort(
                 "error_reason": reason,
                 "acquirer_data": {"rrn": None},
                 "created_at": _NOW - age_hours * 3600,
+                # GROUND TRUTH, under a `_truth` key that nothing in the request
+                # path reads. `PaymentSnapshot.from_razorpay` builds its prompt from
+                # named fields only, so this cannot leak into what the model sees --
+                # and `tests/bench/` asserts that. Stripped by the sandbox server
+                # before any tool returns a payment, so it is invisible over MCP too.
+                "_truth": {
+                    "cause_class": true_cause,
+                    "base_rate": true_rate,
+                    "recovery_probability": true_recovery_probability(true_rate, age_hours),
+                },
             }
         )
 

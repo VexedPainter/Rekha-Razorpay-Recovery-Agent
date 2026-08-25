@@ -90,6 +90,20 @@ def _collection(items: list[dict[str, Any]]) -> dict[str, Any]:
     return {"entity": "collection", "count": len(items), "items": items}
 
 
+def _public(payment: dict[str, Any]) -> dict[str, Any]:
+    """A payment as Razorpay would return it, with ground truth removed.
+
+    The cohort carries a `_truth` key holding the real cause class and recovery
+    probability, used only by the evaluation harness. Stripping it here -- at the
+    single boundary every read tool goes through -- means it cannot reach the agent
+    even by accident, however the payment is fetched.
+
+    If it leaked, every accuracy number in the project would be circular: the model
+    would be reading the answer instead of inferring it.
+    """
+    return {key: value for key, value in payment.items() if key != "_truth"}
+
+
 # ------------------------------------------------------------------- read tools
 
 
@@ -101,7 +115,7 @@ def fetch_all_payments(
     items = sorted(_payments.values(), key=lambda p: p["created_at"], reverse=True)
     if status:
         items = [p for p in items if p["status"] == status]
-    return _collection(items[skip : skip + count])
+    return _collection([_public(p) for p in items[skip : skip + count]])
 
 
 @mcp.tool(name="fetch_payment", annotations=ToolAnnotations(readOnlyHint=True))
@@ -110,14 +124,14 @@ def fetch_payment(payment_id: str) -> dict[str, Any]:
     payment = _payments.get(payment_id)
     if payment is None:
         return {"error": {"code": "BAD_REQUEST_ERROR", "description": "payment not found"}}
-    return dict(payment)
+    return _public(payment)
 
 
 @mcp.tool(name="fetch_order_payments", annotations=ToolAnnotations(readOnlyHint=True))
 def fetch_order_payments(order_id: str) -> dict[str, Any]:
     """Every payment attempt against one order -- the customer's retry history."""
     return _collection(
-        [dict(p) for p in _payments.values() if p.get("order_id") == order_id]
+        [_public(p) for p in _payments.values() if p.get("order_id") == order_id]
     )
 
 
@@ -165,7 +179,7 @@ def fetch_all_payment_links() -> dict[str, Any]:
 def fetch_all_settlements(count: int = 10, skip: int = 0) -> dict[str, Any]:
     """Settlements: money actually moved to the merchant's bank account."""
     items = sorted(_settlements.values(), key=lambda s: s["created_at"], reverse=True)
-    return _collection(items[skip : skip + count])
+    return _collection([_public(p) for p in items[skip : skip + count]])
 
 
 @mcp.tool(name="fetch_settlement_recon_details", annotations=ToolAnnotations(readOnlyHint=True))

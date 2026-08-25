@@ -84,3 +84,37 @@ def register(app: typer.Typer) -> None:
         from bench.metrics import measure, render
 
         typer.echo(render(measure(db, session or None)))
+
+    @bench_app.command("evaluate")
+    def evaluate_cmd(
+        count: int = typer.Option(200, "--count", help="Cohort size."),
+        holdout: float = typer.Option(0.5, "--holdout", help="Held-out fraction."),
+        seed: int = typer.Option(4242, "--seed", help="Split seed."),
+    ) -> None:
+        """Score diagnosis accuracy against ground truth on a held-out set."""
+        from bench.evaluate import evaluate, render
+
+        typer.echo(render(evaluate(count=count, holdout_fraction=holdout, seed=seed)))
+
+    @bench_app.command("calibration")
+    def calibration(
+        db: str = typer.Option("recovery.db", "--db", help="Ledger to score."),
+        session: str = typer.Option("", "--session", help="Session id. Default: latest."),
+    ) -> None:
+        """Score the AI's probability forecasts against what actually happened."""
+        from bench.calibration import render, score
+
+        from belay.ledger.store import LedgerStore
+
+        ledger = LedgerStore(f"sqlite:///{db}")
+        target = session or _latest(ledger)
+        if not target:
+            raise typer.BadParameter(f"{db} has no sessions")
+        typer.echo(render(score(ledger.read(target))))
+
+
+def _latest(ledger: object) -> str:
+    sessions = [
+        e.session_id for e in ledger.read_by_types(["session_started"])  # type: ignore[attr-defined]
+    ]
+    return sessions[-1] if sessions else ""

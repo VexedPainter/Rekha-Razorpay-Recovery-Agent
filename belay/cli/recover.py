@@ -167,6 +167,11 @@ def register(app: typer.Typer) -> None:
                     max_actions=mandate_obj.max_actions_per_window,
                     execute=not dry_run,
                 )
+                # Record every forecast the AI made, selected or not, BEFORE
+                # reporting. Scoring only the actions taken would be biased: the
+                # agent chose those because it was confident, so it would be
+                # measuring its confidence on the easy cases.
+                _record_forecasts(ledger, session_id, run)
                 _report(run, session_id=session_id, db=db)
 
         anyio.run(_main)
@@ -208,6 +213,41 @@ def _upstream_command(*, live: bool) -> tuple[str, list[str]]:
         "--header",
         f"Authorization: Basic {token}",
     ]
+
+
+def _record_forecasts(ledger: object, session_id: str, run: Any) -> None:
+    """Write every AI forecast from this run into the ledger.
+
+    Done here rather than inside `recovery/` because the AI layer is forbidden from
+    importing `belay.ledger` -- an agent able to write its own evidence could
+    rewrite its own track record. The control plane records what it was handed.
+    """
+    from belay.razorpay.forecast import record_proposal
+
+    plan = run.plan
+    if plan is None:
+        return
+
+    selected_ids = {p.payment_id for p in plan.selected}
+    everything = [*plan.selected, *plan.declined_for_budget, *plan.not_worth_pursuing]
+    for proposal in everything:
+        record_proposal(
+            ledger,  # type: ignore[arg-type]
+            session_id,
+            payment_id=proposal.payment_id,
+            reference_id=f"recover-{proposal.payment_id}",
+            cause_class=proposal.cause_class.value,
+            strategy=proposal.strategy.value,
+            amount=proposal.amount,
+            expected_recovery=proposal.expected_recovery,
+            confidence=proposal.confidence.value,
+            diagnosis=proposal.diagnosis,
+            reasoning=proposal.reasoning,
+            prompt_version=proposal.prompt_version,
+            provider=proposal.provider,
+            model=proposal.model,
+            selected=proposal.payment_id in selected_ids,
+        )
 
 
 def _report(run: Any, *, session_id: str, db: str) -> None:
