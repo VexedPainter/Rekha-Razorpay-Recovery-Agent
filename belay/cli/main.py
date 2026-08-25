@@ -1017,6 +1017,9 @@ def counterfactual_command(
 from belay.cli.recover import register as _register_recover  # noqa: E402
 
 _register_recover(app)
+from belay.cli.webhooks import register as _register_webhooks  # noqa: E402
+
+_register_webhooks(app)
 
 
 def main() -> None:

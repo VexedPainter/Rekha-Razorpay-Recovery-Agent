@@ -1,0 +1,164 @@
+"""Simulate customers paying recovery links, and emit signed webhook envelopes.
+
+This script plays two roles that are NOT part of the system under test, and says
+so explicitly:
+
+1. **The customer.** Calls the sandbox's `sandbox_simulate_payment`, which is a
+   sandbox-only tool with no contract -- so the governed proxy would refuse it.
+   Driven here, out-of-band, as the outside world.
+2. **Razorpay's webhook signer.** HMAC-signs each resulting event with the
+   configured secret.
+
+Point 2 is worth being precise about. Signing our own webhooks does not make the
+verification meaningless, because the verifier neither knows nor cares who signed:
+it checks an HMAC it did not produce against a body it did not write. What this
+does mean is that the *authenticity* of the underlying event is asserted by this
+script rather than by Razorpay. In test mode, with a sandbox upstream, that is the
+only option available -- and the README says so plainly rather than implying a
+live webhook delivery that never happened.
+
+What is genuinely proven offline: the signature check rejects tampering, the
+deduplication survives a replay, the amounts reconcile, and the evidence chain
+verifies. What is not: that Razorpay's real delivery format matches ours field for
+field. The shapes are taken from Razorpay's documented payloads, and a live run
+would confirm them.
+
+    python scripts/simulate_payments.py --rate 0.6
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import random
+import sys
+from pathlib import Path
+from typing import Any
+
+import anyio
+from mcp import ClientSession
+from mcp.client.stdio import StdioServerParameters, stdio_client
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+from belay.ledger.store import LedgerStore  # noqa: E402
+from belay.razorpay.webhooks import sign_payload  # noqa: E402
+from recovery.providers import load_env  # noqa: E402
+
+SANDBOX = REPO_ROOT / "examples" / "razorpay-sandbox" / "server.py"
+
+
+def _unwrap(raw: object) -> dict[str, Any]:
+    structured = getattr(raw, "structuredContent", None)
+    if isinstance(structured, dict):
+        nested = structured.get("result", structured)
+        return dict(nested) if isinstance(nested, dict) else {}
+    return {}
+
+
+def _links_from_ledger(db: Path) -> list[str]:
+    """Payment links this system actually created, read from its own evidence."""
+    ledger = LedgerStore(f"sqlite:///{db}")
+    links: list[str] = []
+    for event in ledger.read_by_types(["result_recorded"]):
+        result = event.payload.get("result")
+        if not isinstance(result, dict):
+            continue
+        link_id = result.get("id")
+        if isinstance(link_id, str) and link_id.startswith("plink_") and link_id not in links:
+            links.append(link_id)
+    return links
+
+
+async def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--db", default="recovery.db", help="Ledger with the created links.")
+    parser.add_argument(
+        "--out", default="webhooks.json", help="Where to write the signed envelopes."
+    )
+    parser.add_argument(
+        "--rate",
+        type=float,
+        default=0.6,
+        help="Fraction of links the customer pays. Not 1.0 by default: a recovery "
+        "rate of 100%% is not a measurement, it is a demo.",
+    )
+    parser.add_argument("--seed", type=int, default=20260905, help="Deterministic selection.")
+    args = parser.parse_args()
+
+    secret = load_env().get("RAZORPAY_WEBHOOK_SECRET", "")
+    if not secret:
+        print("no RAZORPAY_WEBHOOK_SECRET in .env -- cannot sign webhooks")
+        return 2
+
+    links = _links_from_ledger(REPO_ROOT / args.db)
+    if not links:
+        print(f"no payment links found in {args.db} -- run `belay recover` first")
+        return 2
+
+    rng = random.Random(args.seed)
+    paying = [link for link in links if rng.random() < args.rate]
+
+    print(f"links created by the agent : {len(links)}")
+    print(f"customers who pay          : {len(paying)}  (rate {args.rate})")
+    print()
+
+    envelopes: list[dict[str, str]] = []
+    params = StdioServerParameters(command=sys.executable, args=[str(SANDBOX)])
+    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
+
+        # The sandbox is a fresh process, so the links the agent created are not in
+        # it. Recreate each one by its reference id -- creation is idempotent on
+        # reference_id, so this reproduces the same link ids deterministically.
+        ledger = LedgerStore(f"sqlite:///{REPO_ROOT / args.db}")
+        for event in ledger.read_by_types(["tool_called"]):
+            tool = event.payload.get("tool")
+            call_args = event.payload.get("args")
+            if not isinstance(tool, str) or not tool.startswith("create_payment_link"):
+                continue
+            if isinstance(call_args, dict):
+                await session.call_tool(tool, call_args)
+
+        for link_id in paying:
+            result = _unwrap(
+                await session.call_tool(
+                    "sandbox_simulate_payment", {"payment_link_id": link_id}
+                )
+            )
+            webhook = result.get("webhook")
+            if not isinstance(webhook, dict):
+                print(f"  {link_id}: no webhook produced (already paid?)")
+                continue
+
+            # The exact raw string that gets signed. Stored verbatim, because HMAC
+            # is over bytes and re-serializing would change whitespace and
+            # invalidate the signature.
+            body = json.dumps(webhook, separators=(",", ":"), sort_keys=True)
+            event_id = f"evt_{link_id[-12:]}"
+            envelopes.append(
+                {
+                    "event_id": event_id,
+                    "signature": sign_payload(body, secret),
+                    "body": body,
+                }
+            )
+            amount = webhook["payload"]["payment_link"]["entity"]["amount_paid"]
+            print(f"  {link_id} paid INR {amount / 100:,.2f}  -> {event_id}")
+
+    # One duplicate, on purpose: Razorpay retries deliveries, so the replay path
+    # must be exercised against a genuine duplicate rather than only a clean run.
+    if envelopes:
+        envelopes.append(dict(envelopes[0]))
+        print(f"\n  + 1 duplicate delivery of {envelopes[0]['event_id']} (Razorpay retries)")
+
+    out = REPO_ROOT / args.out
+    out.write_text(json.dumps(envelopes, indent=2), encoding="utf-8")
+    print(f"\nwrote {len(envelopes)} envelope(s) to {args.out}")
+    print(f"ingest with: belay webhooks replay {args.out} --db {args.db}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(anyio.run(main))
