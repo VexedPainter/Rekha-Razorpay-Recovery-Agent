@@ -85,6 +85,20 @@ async def main() -> int:
         "rate of 100%% is not a measurement, it is a demo.",
     )
     parser.add_argument("--seed", type=int, default=20260905, help="Deterministic selection.")
+    parser.add_argument(
+        "--recon-out",
+        default="recon.json",
+        help="Where to write the SETTLED leg (settlement reconciliation entries).",
+    )
+    parser.add_argument(
+        "--inject",
+        choices=["none", "unauthorized", "amount", "duplicate"],
+        default="none",
+        help="Corrupt the settlement data, to prove the verifier detects it: "
+        "`unauthorized` settles money against a reference nobody approved, "
+        "`amount` settles a different figure than was authorized, "
+        "`duplicate` settles one authorization twice.",
+    )
     args = parser.parse_args()
 
     secret = load_env().get("RAZORPAY_WEBHOOK_SECRET", "")
@@ -121,6 +135,7 @@ async def main() -> int:
             if isinstance(call_args, dict):
                 await session.call_tool(tool, call_args)
 
+        paid_payment_ids: list[str] = []
         for link_id in paying:
             result = _unwrap(
                 await session.call_tool(
@@ -144,8 +159,54 @@ async def main() -> int:
                     "body": body,
                 }
             )
+            payment = result.get("payment")
+            if isinstance(payment, dict) and isinstance(payment.get("id"), str):
+                paid_payment_ids.append(payment["id"])
             amount = webhook["payload"]["payment_link"]["entity"]["amount_paid"]
             print(f"  {link_id} paid INR {amount / 100:,.2f}  -> {event_id}")
+
+        # ------------------------------------------------------ the SETTLED leg
+        #
+        # Settle the payments that were made, producing itemised reconciliation
+        # entries with realistic fee and GST deductions. This is the third,
+        # independent leg the verifier needs.
+        print()
+        recon: list[dict[str, Any]] = []
+        if paid_payment_ids:
+            settled = _unwrap(
+                await session.call_tool("sandbox_settle", {"payment_ids": paid_payment_ids})
+            )
+            print(f"  settled {settled.get('settled', 0)} payment(s)")
+            recon = _unwrap(
+                await session.call_tool("fetch_settlement_recon_details", {})
+            ).get("items", [])
+
+        if args.inject == "unauthorized":
+            # Money settled against a recovery reference nobody approved. Only
+            # detectable from a source we do not author -- the case three-way
+            # verification exists for.
+            injected = _unwrap(
+                await session.call_tool(
+                    "sandbox_inject_unauthorized_settlement", {"amount": 5000000}
+                )
+            ).get("injected", {})
+            injected["reference_id"] = "recover-pay_NEVER_AUTHORIZED"
+            recon.append(injected)
+            print("  INJECTED: INR 50,000.00 settled against an unapproved reference")
+        elif args.inject == "amount" and recon:
+            original = recon[0]["amount"]
+            recon[0]["amount"] = original + 150000
+            print(
+                f"  INJECTED: entry 0 settled INR {recon[0]['amount'] / 100:,.2f} "
+                f"instead of INR {original / 100:,.2f}"
+            )
+        elif args.inject == "duplicate" and recon:
+            recon.append(dict(recon[0]))
+            print("  INJECTED: one authorization settled twice")
+
+        recon_path = REPO_ROOT / args.recon_out
+        recon_path.write_text(json.dumps(recon, indent=2), encoding="utf-8")
+        print(f"  wrote {len(recon)} recon entry(ies) to {args.recon_out}")
 
     # One duplicate, on purpose: Razorpay retries deliveries, so the replay path
     # must be exercised against a genuine duplicate rather than only a clean run.

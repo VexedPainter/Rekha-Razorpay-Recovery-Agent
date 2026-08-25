@@ -1020,6 +1020,9 @@ _register_recover(app)
 from belay.cli.webhooks import register as _register_webhooks  # noqa: E402
 
 _register_webhooks(app)
+from belay.cli.settlement import register as _register_settlement  # noqa: E402
+
+_register_settlement(app)
 
 
 def main() -> None:
