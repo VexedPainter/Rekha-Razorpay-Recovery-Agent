@@ -42,12 +42,13 @@ from recovery.proposal import (
     Confidence,
     PaymentSnapshot,
     RecoveryProposal,
+    RecoveryStep,
     Strategy,
 )
 from recovery.providers import LLMProvider, ProviderError
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
-DEFAULT_PROMPT = "diagnose_v1"
+DEFAULT_PROMPT = "diagnose_v2"
 
 #: How many payments per request. Chosen empirically against the real Gemini free
 #: tier: 15 completes in ~24s, 25 reliably drops the connection mid-generation
@@ -98,6 +99,25 @@ RESPONSE_SCHEMA: dict[str, object] = {
                     },
                     "diagnosis": {"type": "string"},
                     "reasoning": {"type": "string"},
+                    # The follow-up plan. Optional in the schema rather than
+                    # required: an empty sequence is a legitimate answer (one
+                    # well-chosen action, or `do_nothing`), and requiring the field
+                    # would push the model towards inventing steps to fill it.
+                    "follow_up": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "strategy": {
+                                    "type": "string",
+                                    "enum": [s.value for s in Strategy],
+                                },
+                                "wait_hours": {"type": "integer"},
+                                "rationale": {"type": "string"},
+                            },
+                            "required": ["strategy", "wait_hours", "rationale"],
+                        },
+                    },
                 },
                 "required": [
                     "payment_id",
@@ -186,6 +206,55 @@ def _do_nothing(
     )
 
 
+#: Longest follow-up plan accepted. Three contacts is the merchant ceiling, and
+#: `wait` steps consume none, so six leaves room for interleaved waits while
+#: bounding what one model response can write into the ledger. A model returning
+#: fifty steps is malfunctioning, not being thorough.
+MAX_FOLLOW_UP_STEPS = 6
+
+
+def _parse_follow_up(raw: object) -> tuple[tuple[RecoveryStep, ...], str | None]:
+    """Parse a follow-up plan, truncating at the first thing that does not parse.
+
+    TRUNCATE RATHER THAN REJECT OR REPAIR. The two obvious options are both worse:
+    dropping the whole proposal because step three was malformed throws away a
+    legitimate recovery over a detail that has not happened yet, and skipping the
+    bad step silently changes the plan into one the model did not propose. Cutting
+    the plan short keeps every step that was actually understood, invents nothing,
+    and returns a reason so the truncation is recorded rather than inferred.
+
+    Nothing dangerous can survive a short plan: the opening action is unaffected,
+    and every later step is re-checked by `belay.razorpay.sequence` anyway.
+
+    Note what is NOT validated here: two link-creating steps in a row. The prompt
+    asks the model to avoid it, but the guarantee lives in the executor, which
+    demands the live link be cancelled first. A structural invariant is worth more
+    than prompt compliance, so this parser does not duplicate it.
+    """
+    if raw is None:
+        return (), None
+    if not isinstance(raw, list):
+        return (), f"follow_up was {type(raw).__name__}, not a list"
+
+    steps: list[RecoveryStep] = []
+    for index, entry in enumerate(raw):
+        if len(steps) >= MAX_FOLLOW_UP_STEPS:
+            return tuple(steps), f"plan truncated at {MAX_FOLLOW_UP_STEPS} steps"
+        if not isinstance(entry, dict):
+            return tuple(steps), f"step {index} was {type(entry).__name__}, not an object"
+        try:
+            steps.append(
+                RecoveryStep(
+                    strategy=Strategy(str(entry["strategy"])),
+                    wait_hours=int(entry.get("wait_hours") or 0),
+                    rationale=str(entry.get("rationale") or "").strip(),
+                )
+            )
+        except (KeyError, ValueError, TypeError, ValidationError) as exc:
+            return tuple(steps), f"step {index} rejected: {type(exc).__name__}"
+    return tuple(steps), None
+
+
 def _parse_entry(
     entry: object,
     snapshots: dict[str, PaymentSnapshot],
@@ -228,6 +297,7 @@ def _parse_entry(
             confidence=Confidence(str(entry["confidence"])),
             diagnosis=str(entry["diagnosis"]).strip(),
             reasoning=str(entry["reasoning"]).strip(),
+            follow_up=_parse_follow_up(entry.get("follow_up"))[0],
             prompt_version=prompt_version,
             provider=provider,
             model=model,

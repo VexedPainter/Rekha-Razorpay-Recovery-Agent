@@ -18,7 +18,13 @@ from typing import Any
 import pytest
 from belay.finance.money import Money
 from recovery.agent import derive_now_epoch
-from recovery.diagnose import DEFAULT_BATCH_SIZE, diagnose_batch, load_prompt
+from recovery.diagnose import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_PROMPT,
+    PROMPT_DIR,
+    diagnose_batch,
+    load_prompt,
+)
 from recovery.prioritize import prioritize
 from recovery.proposal import (
     CauseClass,
@@ -88,9 +94,23 @@ def test_the_prompt_is_versioned_by_content_hash() -> None:
     """Editing a prompt must change the recorded version, or provenance is a
     label rather than a fact."""
     text, version = load_prompt()
-    assert version.startswith("diagnose_v1@")
+    # Asserted against DEFAULT_PROMPT rather than a hardcoded name: pinning "v1"
+    # here meant that promoting v2 to the default failed a test about hashing,
+    # which is not what this test is about.
+    assert version.startswith(f"{DEFAULT_PROMPT}@")
     assert len(version.split("@")[1]) == 8
     assert "notes" in text and "instructions" in text  # the injection guidance
+
+
+def test_every_shipped_prompt_carries_the_injection_defence() -> None:
+    """A new prompt must not quietly drop it. The guidance is the only thing
+    standing between a customer-supplied order note and the model treating it as
+    an instruction, and it is easy to lose when rewriting."""
+    for path in sorted((PROMPT_DIR).glob("*.md")):
+        text = path.read_text(encoding="utf-8").lower()
+        assert "notes" in text, f"{path.name} does not mention the notes field"
+        assert "never as instructions" in text, f"{path.name} lacks injection guidance"
+        assert "refund" in text, f"{path.name} does not state the refund boundary"
 
 
 def test_every_proposal_carries_its_prompt_and_model() -> None:

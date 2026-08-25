@@ -37,6 +37,7 @@ from cohort import generate_cohort  # noqa: E402
 from recovery.agent import derive_now_epoch  # noqa: E402
 from recovery.diagnose import (  # noqa: E402
     DEFAULT_BATCH_SIZE,
+    DEFAULT_PROMPT,
     RESPONSE_SCHEMA,
     _snapshot_for_prompt,
     load_prompt,
@@ -148,7 +149,48 @@ def _synthetic_entry(snapshot: PaymentSnapshot) -> dict[str, object]:
         "confidence": "medium",
         "diagnosis": _DIAGNOSIS[cause],
         "reasoning": f"Classified as {cause} from the failure detail; {route}.",
+        "follow_up": _synthetic_follow_up(cause, strategy),
     }
+
+
+#: Rule-derived follow-up plans, one per cause. Crude by design and in exactly the
+#: way that shows what the model contributes: these delays are fixed per cause,
+#: whereas the model reads the individual payment -- it can tell that an
+#: insufficient-funds failure on the 28th should wait for payday while one on the
+#: 2nd should not, which a table keyed only on cause cannot express.
+_FOLLOW_UP: dict[str, list[tuple[str, int, str]]] = {
+    "customer_recoverable": [
+        ("remind", 12, "A nudge often converts an abandoned attempt."),
+        ("do_nothing", 48, "Two touches is enough for an abandoned checkout."),
+    ],
+    "bank_transient": [
+        ("remind", 6, "The outage has likely cleared; nudge the existing link."),
+        ("payment_link", 24, "Offer other instruments if the original still fails."),
+        ("do_nothing", 48, "Stop after offering an alternative."),
+    ],
+    "authentication_failed": [
+        ("remind", 12, "The customer may complete authentication on a second try."),
+        ("do_nothing", 48, "Stop rather than push a failing instrument."),
+    ],
+    "insufficient_funds": [
+        ("remind", 72, "Three days allows a balance to recover."),
+        ("do_nothing", 96, "Stop rather than repeatedly ask for money they lack."),
+    ],
+    "method_unsupported": [
+        ("remind", 24, "The link already offers alternative methods."),
+        ("do_nothing", 48, "Stop; the original instrument cannot work."),
+    ],
+    "permanently_dead": [],
+}
+
+
+def _synthetic_follow_up(cause: str, strategy: str) -> list[dict[str, object]]:
+    if strategy == "do_nothing":
+        return []
+    return [
+        {"strategy": name, "wait_hours": hours, "rationale": why}
+        for name, hours, why in _FOLLOW_UP.get(cause, [])
+    ]
 
 
 def _snapshots(count: int) -> list[PaymentSnapshot]:
@@ -165,6 +207,30 @@ def main() -> int:
     parser.add_argument(
         "--batch-size", type=int, default=DEFAULT_BATCH_SIZE, help="payments per request"
     )
+    parser.add_argument(
+        "--prompt", default=DEFAULT_PROMPT, help="prompt name in recovery/prompts/"
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=8192,
+        help=(
+            "output budget per request. Groq's free tier counts this against its "
+            "8000 tokens-per-minute limit, so a long prompt needs a smaller value "
+            "there -- 8192 requested plus a 2.5k prompt is rejected before the "
+            "model sees it."
+        ),
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "skip batches whose fixture already exists. Matters on a metered free "
+            "tier: without it, retrying after a failure at batch 15 re-requests the "
+            "14 that already succeeded and can exhaust a daily quota on work "
+            "already done."
+        ),
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--synthetic", action="store_true", help="rule-derived, no API call")
     group.add_argument(
@@ -174,7 +240,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    system, prompt_version = load_prompt()
+    system, prompt_version = load_prompt(args.prompt)
     snapshots = _snapshots(args.count)
     FIXTURES.mkdir(parents=True, exist_ok=True)
 
@@ -189,23 +255,41 @@ def main() -> int:
         print("writing synthetic fixtures (rule-derived, marked as such)")
 
     written = 0
+    skipped = 0
+    failed: list[tuple[int, str]] = []
+    from belay.canonical import canonical_bytes, sha256_hex
+
     for start in range(0, len(snapshots), args.batch_size):
         chunk = snapshots[start : start + args.batch_size]
+        batch_no = start // args.batch_size + 1
         user = json.dumps(
             {"payments": [_snapshot_for_prompt(s) for s in chunk]},
             indent=2,
             ensure_ascii=False,
         )
+        key = sha256_hex(canonical_bytes({"system": system, "user": user}))[:20]
 
-        if recorder is not None:
-            recorder.complete_json(system=system, user=user, schema=RESPONSE_SCHEMA)
-            written += 1
-            print(f"  batch {start // args.batch_size + 1}: recorded {len(chunk)} payments")
+        if args.resume and (FIXTURES / f"{key}.json").exists():
+            skipped += 1
+            print(f"  batch {batch_no}: already recorded, skipping")
             continue
 
-        from belay.canonical import canonical_bytes, sha256_hex
+        if recorder is not None:
+            try:
+                recorder.complete_json(
+                    system=system, user=user, schema=RESPONSE_SCHEMA, max_tokens=args.max_tokens
+                )
+            except Exception as exc:
+                # Keep going rather than aborting. On a metered free tier a single
+                # rate-limit response should not discard the batches that would
+                # have succeeded after it, and `--resume` can fill the gaps later.
+                failed.append((batch_no, f"{type(exc).__name__}: {str(exc)[:120]}"))
+                print(f"  batch {batch_no}: FAILED -- {type(exc).__name__}")
+                continue
+            written += 1
+            print(f"  batch {batch_no}: recorded {len(chunk)} payments -> {key}.json")
+            continue
 
-        key = sha256_hex(canonical_bytes({"system": system, "user": user}))[:20]
         (FIXTURES / f"{key}.json").write_text(
             json.dumps(
                 {
@@ -227,16 +311,23 @@ def main() -> int:
             encoding="utf-8",
         )
         written += 1
-        print(f"  batch {start // args.batch_size + 1}: {len(chunk)} payments -> {key}.json")
+        print(f"  batch {batch_no}: {len(chunk)} payments -> {key}.json")
 
-    print(f"\n{written} fixture file(s) in {FIXTURES.relative_to(REPO_ROOT)}")
+    print(f"\n{written} fixture file(s) written to {FIXTURES.relative_to(REPO_ROOT)}")
+    if skipped:
+        print(f"{skipped} batch(es) already present and skipped")
     print(f"prompt: {prompt_version}")
+    if failed:
+        print(f"\n{len(failed)} batch(es) FAILED:")
+        for batch_no, detail in failed:
+            print(f"  batch {batch_no}: {detail}")
+        print("Re-run with --resume to retry only these, or use a different provider.")
     if not args.from_provider:
         print(
             "\nThese are SYNTHETIC. Re-record with --from-provider gemini once a key\n"
             "is available, so the repo ships real model reasoning."
         )
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
