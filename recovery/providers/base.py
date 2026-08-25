@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -65,11 +66,28 @@ class LLMProvider(Protocol):
         ...
 
 
+#: A value is treated as an unfilled template placeholder if it contains four or
+#: more consecutive `x`. Deliberately not "contains `xxx`": a real API key is
+#: base64-ish and could plausibly contain three, and silently discarding a valid
+#: key produces a baffling "no provider available" instead of an error anyone can
+#: act on. Four consecutive `x` matches every placeholder in `.env.example` and
+#: essentially no real credential.
+_PLACEHOLDER = re.compile(r"x{4,}", re.IGNORECASE)
+
+
+def is_placeholder(value: str) -> bool:
+    """Whether `value` looks like an unfilled `.env.example` placeholder."""
+    return bool(_PLACEHOLDER.search(value))
+
+
 def load_env(path: str | Path = ".env") -> dict[str, str]:
     """Read `.env` once, merged under the real environment.
 
     Minimal by design: no interpolation, no export syntax, no dependency. The
     real environment always wins, so CI cannot be surprised by a stray file.
+
+    Unfilled placeholders are dropped rather than returned, so a `.env` copied
+    from the template does not look like a configured key.
     """
     global _DOTENV_CACHE
     if _DOTENV_CACHE is None:
@@ -82,7 +100,7 @@ def load_env(path: str | Path = ".env") -> dict[str, str]:
                     continue
                 key, _, value = line.partition("=")
                 cleaned = value.strip().strip("'\"")
-                if cleaned and "xxx" not in cleaned:
+                if cleaned and not is_placeholder(cleaned):
                     values[key.strip()] = cleaned
         _DOTENV_CACHE = values
     return {**_DOTENV_CACHE, **os.environ}

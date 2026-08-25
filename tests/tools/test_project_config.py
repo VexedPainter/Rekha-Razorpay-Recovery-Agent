@@ -111,3 +111,53 @@ def test_contains_option_requires_a_standalone_argument() -> None:
     """Coverage options with a matching substring must not satisfy the gate."""
     assert not _contains_option("--cov-branching --cov=belay", "--cov-branch")
     assert _contains_option("--cov-branch --cov=belay", "--cov-branch")
+
+
+def test_the_env_template_exists_and_documents_every_provider() -> None:
+    """`.env.example` is the only instruction anyone gets for configuring keys.
+
+    Pinned because it was already silently deleted once by a `git add -A` that
+    swept up a stray removal, and nothing noticed until someone went looking for
+    where to put a key. A tracked template that can vanish without failing a build
+    is documentation that will eventually be wrong.
+    """
+    template = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    for key in (
+        "GEMINI_API_KEY",
+        "GROQ_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "RAZORPAY_KEY_ID",
+        "RAZORPAY_KEY_SECRET",
+        "RAZORPAY_WEBHOOK_SECRET",
+    ):
+        assert key in template, f"{key} is not documented in .env.example"
+
+    # Every provider the code knows about must be documented, so adding one
+    # cannot leave users guessing at its variable name.
+    from recovery.providers.providers import PROVIDER_ORDER
+
+    for _, key_name, _ in PROVIDER_ORDER:
+        assert key_name in template, f"{key_name} is supported but undocumented"
+
+    # And where to get the free ones.
+    assert "aistudio.google.com" in template
+    assert "console.groq.com" in template
+
+
+def test_the_env_template_contains_no_real_looking_credentials() -> None:
+    """Every value in the tracked template must be an obvious placeholder."""
+    from recovery.providers.base import is_placeholder
+
+    template = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
+    for raw in template.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        cleaned = value.strip().strip("'\"")
+        if not cleaned:
+            continue
+        assert is_placeholder(cleaned) or cleaned == "pick-any-string-for-now", (
+            f"{key.strip()} in .env.example looks like a real value: {cleaned[:20]}"
+        )

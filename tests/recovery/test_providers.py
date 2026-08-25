@@ -24,7 +24,7 @@ from recovery.providers import (
     available_providers,
     resolve_provider,
 )
-from recovery.providers.base import _parse_model_json
+from recovery.providers.base import _parse_model_json, is_placeholder
 from recovery.providers.providers import _to_gemini_schema
 
 SCHEMA: dict[str, Any] = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
@@ -226,6 +226,47 @@ def test_requesting_a_provider_without_its_key_fails_clearly() -> None:
 
 def test_the_env_var_selects_a_provider() -> None:
     assert resolve_provider(env={"RECOVERY_PROVIDER": "replay"}).name == "replay"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("rzp_test_xxxxxxxxxxxxxx", True),
+        ("sk-ant-xxxxxxxx", True),
+        ("AIza...xxxx", True),
+        # Real keys must NOT be mistaken for placeholders. The rule is four or
+        # more consecutive `x`, not "contains xxx", because a base64-ish key can
+        # plausibly contain three -- and silently discarding a valid key produces
+        # a baffling "no provider available" rather than an actionable error.
+        ("AIzaSyB7kQx3mZpLq9RtVw2NjHdF8sYcEaGbTuI", False),
+        ("gsk_aBcXxYz123", False),
+        ("rzp_test_TTyIb7nRealKey99", False),
+    ],
+)
+def test_placeholder_detection_does_not_reject_real_keys(value: str, expected: bool) -> None:
+    assert is_placeholder(value) is expected
+
+
+def test_a_dotenv_placeholder_is_not_treated_as_a_configured_key(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `.env` copied from the template must not look configured."""
+    from recovery.providers import load_env, reset_env_cache
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "GEMINI_API_KEY=AIzaxxxxxxxx\nGROQ_API_KEY=gsk_realLookingKey123\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    reset_env_cache()
+    try:
+        values = load_env(env_file)
+        assert "GEMINI_API_KEY" not in values
+        assert values["GROQ_API_KEY"] == "gsk_realLookingKey123"
+    finally:
+        reset_env_cache()
 
 
 def test_a_model_can_be_overridden_by_env() -> None:
