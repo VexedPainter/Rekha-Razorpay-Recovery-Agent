@@ -230,15 +230,30 @@ tamper-evident ledger, exportable and signature-verifiable.
 
 ## Quickstart
 
-The repo ships **real recorded Gemini output**, so the full pipeline runs offline
-and deterministically. Pass `--provider replay` to use it — the CLI otherwise
-defaults to a live provider and will rate-limit without a key.
+**Requires Python 3.12+.** The code uses PEP 695 type-alias syntax, so 3.11 cannot
+parse it. Every entry point checks this and prints the exact command to run if your
+`python` is older — a common situation on Windows, where creating a virtualenv does
+not change what bare `python` resolves to on `PATH`.
 
-```bash
-uv venv && uv pip install -e .
+```powershell
+uv venv
+uv pip install -e .
+.\.venv\Scripts\Activate.ps1     # do this, or prefix commands with .\.venv\Scripts\
+```
 
+The repo ships **real recorded Gemini output**, so the full pipeline runs offline and
+deterministically. Pass `--provider replay` to use it — the CLI otherwise defaults to
+a live provider and will rate-limit without a key.
+
+```powershell
 # the headline demo: 200 failed payments, diagnosed, prioritised, executed
-python examples/demo_recovery.py
+python examples\demo_recovery.py
+```
+
+If you skipped activation, the equivalent is:
+
+```powershell
+.\.venv\Scripts\python.exe examples\demo_recovery.py
 ```
 
 ### Measured claims

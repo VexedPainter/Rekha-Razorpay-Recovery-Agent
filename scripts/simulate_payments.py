@@ -28,6 +28,13 @@ would confirm them.
 
 from __future__ import annotations
 
+# Fail with an actionable message on Python < 3.12 rather than a SyntaxError raised
+# from a valid line -- a bare python on PATH is commonly older than the venv's.
+# See examples/_bootstrap.py.
+import sys as _sys
+from pathlib import Path as _Path
+
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / 'examples'))
 import argparse
 import json
 import random
@@ -35,6 +42,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import _bootstrap  # noqa: F401  (imported for its side effect)
 import anyio
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client

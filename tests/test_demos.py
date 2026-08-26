@@ -109,3 +109,47 @@ def test_the_control_plane_demo_still_governs_and_rewinds() -> None:
     assert "chain: OK" in out
     assert "coherence: OK" in out
     assert "session fully compensated" in out
+
+
+def test_every_standalone_entry_point_guards_its_python_version() -> None:
+    """A bare python on PATH is routinely older than the venv's, and this code
+    needs 3.12 to PARSE. Without a guard the failure is a SyntaxError pointing at a
+    valid line, which reads as a broken project rather than a wrong interpreter --
+    and it is the very first command anyone runs on a fresh clone.
+
+    _bootstrap itself must stay parseable by old Pythons, or it fails with exactly
+    the error it exists to explain.
+    """
+    import ast
+    from pathlib import Path as _P
+
+    root = _P(__file__).resolve().parents[1]
+    guarded = [
+        root / 'examples' / 'demo.py',
+        root / 'examples' / 'demo_fanout.py',
+        root / 'examples' / 'demo_recovery.py',
+        root / 'scripts' / 'record_fixtures.py',
+        root / 'scripts' / 'simulate_payments.py',
+    ]
+    for path in guarded:
+        assert '_bootstrap' in path.read_text(encoding='utf-8'), (
+            f'{path.name} can be run directly but does not check the Python version'
+        )
+
+    bootstrap = root / 'examples' / '_bootstrap.py'
+    source = bootstrap.read_text(encoding='utf-8')
+    ast.parse(source)
+
+    # The guard must contain no syntax newer than the Pythons it reports on, or it
+    # fails with exactly the error it exists to explain. Matched against statement
+    # FORMS rather than bare words -- an earlier version of this test searched for
+    # 'type ' and tripped over the phrase 'type-alias syntax' in the docstring.
+    import re
+
+    forbidden = {
+        'PEP 695 type alias': r'(?m)^\s*type\s+\w+\s*=',
+        'match statement': r'(?m)^\s*match\s+.*:\s*$',
+        'walrus operator': r':=',
+    }
+    for label, pattern in forbidden.items():
+        assert not re.search(pattern, source), f'guard uses {label}, defeating its purpose'

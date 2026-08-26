@@ -129,7 +129,7 @@ def test_discrimination_and_calibration_are_different_questions() -> None:
     # Perfect ranking, terrible levels.
     observations = [(0.1, True)] * 50 + [(0.05, False)] * 50
     _, _, separation = _discrimination(observations)
-    brier, baseline, skill = _brier(observations)
+    *_, skill = _brier(observations)
     assert separation > 0, "ranking is perfect here"
     assert skill is not None and skill < 0, "levels are bad enough to lose to the base rate"
 
@@ -152,7 +152,7 @@ def test_the_report_explains_a_negative_skill_rather_than_hiding_it() -> None:
     unflattering number that is left out invites a worse one."""
     result = run(count=200)
     text = render(result)
-    brier, baseline, skill = _brier(result.sequenced.observations)
+    *_, skill = _brier(result.sequenced.observations)
     assert "Discrimination" in text and "Calibration" in text
     if skill is not None and skill < 0:
         assert "READ THESE TWO TOGETHER" in text

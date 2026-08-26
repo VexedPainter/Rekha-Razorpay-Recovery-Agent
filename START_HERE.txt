@@ -81,8 +81,22 @@ Open PowerShell in this folder.
   uv venv
   uv pip install -e .
 
+  # ACTIVATE IT. This is the step that bites.
+  .\.venv\Scripts\Activate.ps1
+
   # THE MAIN DEMO — this is what to record
   python examples\demo_recovery.py
+
+WHY ACTIVATION MATTERS. This project needs Python 3.12. Creating a virtualenv does
+NOT change what a bare `python` command points at — on this machine that is still
+3.11, which cannot even parse the source. Without activating, you get an error
+before anything runs.
+
+Every entry point now detects this and tells you the exact command to use, so you
+cannot get stuck on it. But activating first is simpler. If you would rather not,
+just spell out the interpreter every time:
+
+  .\.venv\Scripts\python.exe examples\demo_recovery.py
 
 You do NOT need an API key. Real Gemini output for all 200 payments is recorded
 in recovery/fixtures/, so the demo replays genuine model reasoning offline and
@@ -107,6 +121,10 @@ Other things worth showing:
 
 If you want to use a live model instead of the recordings, put a free Gemini or
 Groq key in .env and add --provider gemini.
+
+NOTE ON `rekha recover`: it defaults to a LIVE model, so on a spent free-tier
+quota it quietly diagnoses nothing and reports "selected: 0". Add
+`--provider replay` to use the recordings. The demo already does this.
 
 
 --------------------------------------------------------------------------------
