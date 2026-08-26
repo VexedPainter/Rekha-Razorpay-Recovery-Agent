@@ -32,3 +32,6 @@ secrets.json
 # Local demo/scratch output
 demo-out/
 *.evidence.json
+
+# Local recording script -- author's notes, not part of the submission
+RECORDING.txt
