@@ -104,7 +104,9 @@ def main() -> int:
     print("-" * 78)
     print("  Note the duplicate: Razorpay retries deliveries, and a retry must not")
     print("  be able to make one recovery look like two.")
-    secret = os.environ.get("RAZORPAY_WEBHOOK_SECRET") or "sandbox_secret"
+    from recovery.providers import load_env
+
+    secret = load_env().get("RAZORPAY_WEBHOOK_SECRET") or "sandbox_secret"
     _rekha("webhooks", "replay", WEBHOOKS, "--db", DB, "--secret", secret)
 
     # ---------------------------------------------------------------------- 6
