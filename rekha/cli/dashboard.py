@@ -111,7 +111,42 @@ const data = JSON.parse(document.getElementById("rekha-data").textContent);
 const root = document.getElementById("root");
 
 function tagClass(t) {
-  return (t || "").toLowerCase();
+  if (typeof t === "string") return t.toLowerCase();
+  if (t && typeof t === "object") {
+    if (typeof t.status === "string") return t.status.toLowerCase();
+    if (typeof t.verdict === "string") return t.verdict.toLowerCase();
+  }
+  return "";
+}
+
+function formatVerdict(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (typeof v === "object") {
+    if (v.status) return v.status;
+    if (v.verdict) return v.verdict;
+    if (v.event) return v.event;
+    if (v.id) return v.id;
+    return "";
+  }
+  return "";
+}
+
+function formatDetails(p) {
+  if (!p || typeof p !== "object") return "";
+  const parts = [];
+  if (p.tool) parts.push(`<strong>tool:</strong> ${p.tool}`);
+  if (p.payment_id) parts.push(`<code>${p.payment_id}</code>`);
+  if (p.strategy) parts.push(`<span class="tag">${p.strategy}</span>`);
+  if (p.amount && p.amount.minor_units != null) {
+    parts.push(`₹${(p.amount.minor_units / 100).toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+  }
+  if (p.paid && p.paid.minor_units != null) {
+    parts.push(`paid: ₹${(p.paid.minor_units / 100).toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+  }
+  if (p.diagnosis) parts.push(`<span style="opacity:0.8">${p.diagnosis}</span>`);
+  return parts.join(" · ");
 }
 
 for (const [sessionId, session] of Object.entries(data.sessions)) {
@@ -125,10 +160,13 @@ for (const [sessionId, session] of Object.entries(data.sessions)) {
   for (const ev of session.events) {
     const step = document.createElement("div");
     step.className = "step";
-    const verdict = ev.payload && (ev.payload.verdict || ev.payload.status || ev.payload.result);
+    const rawVerdict = ev.payload && (ev.payload.verdict || ev.payload.status || (typeof ev.payload.result === "string" ? ev.payload.result : (ev.payload.event || "")));
+    const verdict = formatVerdict(rawVerdict);
+    const details = formatDetails(ev.payload);
     step.innerHTML = `<span class="step-seq">${ev.step_seq ?? ""}</span>` +
       `<span class="step-type">${ev.type}</span>` +
-      (verdict ? `<span class="tag ${tagClass(verdict)}">${verdict}</span>` : "");
+      (verdict ? `<span class="tag ${tagClass(verdict)}">${verdict}</span>` : "") +
+      (details ? `<span class="step-details" style="opacity:0.75; font-size:0.8rem; margin-left:0.5rem">${details}</span>` : "");
     div.appendChild(step);
   }
   root.appendChild(div);
@@ -142,9 +180,11 @@ for (const a of data.approvals) {
   div.className = "approval";
   const approveCmd = `rekha approvals approve ${a.approval_id} --by &lt;you&gt; ` +
     `--db ${data.db_path}`;
+  const toolName = (a.plan && a.plan.tool) || "";
   div.innerHTML = `<div>${a.approval_id} ` +
     `<span class="tag ${tagClass(a.state)}">${a.state}</span> ` +
-    `tool=${a.plan.tool || ""} session=${a.session_id}</div>` +
+    (toolName ? `tool=${toolName} ` : "") +
+    `session=${a.session_id || ""}</div>` +
     (a.state === "pending" ? `<div class="cmd">${approveCmd}</div>` : "");
   approvalsSection.appendChild(div);
 }
