@@ -27,6 +27,7 @@ import sys as _sys
 from pathlib import Path as _Path
 
 _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -103,7 +104,8 @@ def main() -> int:
     print("-" * 78)
     print("  Note the duplicate: Razorpay retries deliveries, and a retry must not")
     print("  be able to make one recovery look like two.")
-    _rekha("webhooks", "replay", WEBHOOKS, "--db", DB)
+    secret = os.environ.get("RAZORPAY_WEBHOOK_SECRET") or "sandbox_secret"
+    _rekha("webhooks", "replay", WEBHOOKS, "--db", DB, "--secret", secret)
 
     # ---------------------------------------------------------------------- 6
     print()
